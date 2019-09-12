@@ -2,7 +2,7 @@
 Pytorch implementation of an end to end Text-Spotter with a PSEnet text detector and CRNN text recognizer.
 
 ## Requirements
-- Python 3.6.5!
+- Python 3.6.5
 - Pytorch 1.0.1
 - pyclipper
 - Polygon 3.0.8
