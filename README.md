@@ -11,10 +11,11 @@ Pytorch implementation of an end to end Text-Spotter with a PSEnet text detector
 ### Testing
 - Download the pretrained CRNN and PSEnet models from the links provided.
 - Copy paths of the models and paste them in params.py
-run
+- run end-end.py
 ```
-python end-end.py --img \[path to image]
+python end-end.py --img [path to image]
 ```
+link to trained models [drive](https://drive.google.com/open?id=1Bza5tAACtqtLNLxg7ws6rzRrSeW1-Jp6) 
 
 
 
