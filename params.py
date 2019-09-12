@@ -9,10 +9,9 @@ imgH = 32 # the height of the input image to network
 imgW = 100 # the width of the input image to network
 nh = 256 # size of the lstm hidden state
 nc = 1
-pretrained = '' # path to pretrained model (to continue training)
 expr_dir = '/home/azhar/crnn-pytorch/output_run3/' # where to store samples and models
 dealwith_lossnone = True # whether to replace all nan/inf in gradients to zero
-crnn_path='/home/azhar/crnn-pytorch/output_run1/netCRNNbest.pth'
+crnn_path='/home/azhar/crnn-pytorch/output_run1/netCRNNbest.pth'#path to trained recognition model
 # hardware
 cuda = True # enables cuda
 multi_gpu = False # whether to use multi gpu
@@ -35,7 +34,7 @@ adadelta = True # whether to use adadelta (default is rmsprop)
 
 #---------------------------Parameters for PSEnet------------------------------------------------
 arch='resnet50'#specify architecture
-PSEnet_path='/home/azhar/summerResearch/MyPSEnet/0.234_epoch6_checkpoint.pth.tar.part'#path to saved model
+PSEnet_path='/home/azhar/summerResearch/MyPSEnet/0.234_epoch6_checkpoint.pth.tar.part'#path to trained detection model
 binary_th=1.0
 kernel_num=7
 scale=1
