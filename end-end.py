@@ -45,7 +45,6 @@ def crop(img,bbox):
     return cropped_img
 
 def drawBBox(bboxs,img):
-	print(bboxs)
 	for bbox in bboxs:
 		bbox = np.reshape(bbox,(4,2))
 		cv2.drawContours(img, [bbox],-1, (0, 255, 0), 2)
@@ -100,7 +99,6 @@ def detect(org_img):
     scaled_img = Variable(scaled_img.cuda())
 
     outputs = model(scaled_img)
-    print(outputs.size())
 
     score = torch.sigmoid(outputs[:, 0, :, :])
     outputs = (torch.sign(outputs - params.binary_th) + 1) / 2
@@ -146,7 +144,7 @@ def recognise(bboxes,org_img):
         model = torch.nn.DataParallel(model)
     model.load_state_dict(torch.load(params.crnn_path))
     converter = utils.strLabelConverter(params.alphabet)
-
+    print('PREDICTION:')
     for bbox in bboxes:
         cropped_img = crop(org_img,bbox)
         if torch.cuda.is_available():
@@ -165,13 +163,18 @@ def recognise(bboxes,org_img):
         print('%-20s => %-20s' % (raw_pred, sim_pred))
 
 
-def main():
-	image = cv2.imread('tr_img_09961.jpg')
+def main(args):
+	image = cv2.imread(args.image)
 	bboxes = detect(image)
 	recognise(bboxes,image)
 
 if __name__ == '__main__':
-	main()
+
+	parser = argparse.ArgumentParser(description='image path')
+	parser.add_argument('--image', nargs='?', type=str, default='demo/tr_img_09961.jpg',    
+						help='Path to test image')
+	args = parser.parse_args()
+	main(args)
 
 
 
