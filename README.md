@@ -9,7 +9,7 @@ Pytorch implementation of an end to end Text-Spotter with a PSEnet text detector
 - OpenCV 3.4.1
 
 ### Testing
-- Download the pretrained CRNN and PSEnet models from the links provided.
+- Download the trained CRNN and PSEnet models from the links provided.
 - Copy paths of the models and paste them in params.py
 - run end-end.py
 ```
