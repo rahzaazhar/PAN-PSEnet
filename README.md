@@ -36,8 +36,8 @@ Download the models in `models/` directory and modify `params.py` if required.
 
 ### Contributors
 
-Azhar Shaikh, PES University [LinkedIn](https://www.linkedin.com/in/azhar-shaikh-b61892137)
-Nishant Sinha, [OffNote Labs](https://github.com/ofnote)
+* Azhar Shaikh, PES University [LinkedIn](https://www.linkedin.com/in/azhar-shaikh-b61892137)
+* Nishant Sinha, [OffNote Labs](https://github.com/ofnote)
 
 Work done as part of Internship with [OffNote Labs](http://offnote.co).
 
