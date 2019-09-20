@@ -15,13 +15,28 @@ Pytorch implementation of an end to end Text-Spotter with a PSEnet text detector
 ```
 python end-end.py --img [path to image]
 ```
-link to trained models [drive](https://drive.google.com/open?id=1Bza5tAACtqtLNLxg7ws6rzRrSeW1-Jp6) 
+
+### Pre-trained Models
+
+Both PSEnet and CRNN pre-trained models can be found here: [gdrive](https://drive.google.com/open?id=1Bza5tAACtqtLNLxg7ws6rzRrSeW1-Jp6)
+
+* the PSEnet model is a multi-lingual text detector, trained on MLT 2019. Works quite well!
+* the CRNN recognizes Hindi right now. this one is quite moody :( More coming soon!
+
+Download the models in `models/` directory and modify `params.py` accordingly.
+
+### Contributors
+
+Azhar Shaikh, PES University [LinkedIn](https://www.linkedin.com/in/azhar-shaikh-b61892137)
+Nishant Sinha, [OffNote Labs](https://github.com/ofnote)
+
+Work done as part of Internship with [OffNote Labs](http://offnote.co).
 
 ### References
 1. [https://github.com/whai362/PSENet](https://github.com/whai362/PSENet)
 2. [https://github.com/Holmeyoung/crnn-pytorch](https://github.com/Holmeyoung/crnn-pytorch)
 
-**if this repository helps you, please star it. Thank you!**
+**If this repository helps you, please star it. Thank you!**
 
 
 
