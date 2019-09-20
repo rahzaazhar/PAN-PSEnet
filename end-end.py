@@ -6,9 +6,9 @@ import collections
 import torch
 import argparse
 import numpy as np
-import torch.nn as nn
-import torch.nn.functional as F
-import pytesseract
+#import torch.nn as nn
+#import torch.nn.functional as F
+#import pytesseract
 import params
 import torchvision.transforms as transforms
 
@@ -45,10 +45,10 @@ def crop(img,bbox):
     return cropped_img
 
 def drawBBox(bboxs,img):
-	for bbox in bboxs:
-		bbox = np.reshape(bbox,(4,2))
-		cv2.drawContours(img, [bbox],-1, (0, 255, 0), 2)
-	cv2.imwrite('result.jpg',img)
+    for bbox in bboxs:
+        bbox = np.reshape(bbox,(4,2))
+        cv2.drawContours(img, [bbox],-1, (0, 255, 0), 2)
+    cv2.imwrite('result.jpg',img)
 
 def detect(org_img):
     if params.arch == "resnet50":
@@ -164,17 +164,20 @@ def recognise(bboxes,org_img):
 
 
 def main(args):
-	image = cv2.imread(args.image)
-	bboxes = detect(image)
-	recognise(bboxes,image)
+    print ('reading image..')
+    image = cv2.imread(args.image)
+    print ('detecting text')
+    bboxes = detect(image)
+    print ('recognizing text')
+    recognise(bboxes,image)
 
 if __name__ == '__main__':
 
-	parser = argparse.ArgumentParser(description='image path')
-	parser.add_argument('--image', nargs='?', type=str, default='demo/tr_img_09961.jpg',    
-						help='Path to test image')
-	args = parser.parse_args()
-	main(args)
+    parser = argparse.ArgumentParser(description='image path')
+    parser.add_argument('--image', nargs='?', type=str, default='demo/tr_img_09961.jpg',    
+                        help='Path to test image')
+    args = parser.parse_args()
+    main(args)
 
 
 
