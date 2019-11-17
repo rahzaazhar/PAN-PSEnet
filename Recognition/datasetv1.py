@@ -88,7 +88,7 @@ class Batch_Balanced_Dataset(object):
         print('total:',balanced_batch_images.size())
 
         return balanced_batch_images, balanced_batch_texts
-
+#added this function to change batch ratio
     def change_batch_ratio(self,opt):
         _AlignCollate = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
         for selected_d, batch_ratio in zip(opt.select_data,opt.batch_ratio):
