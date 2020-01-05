@@ -174,7 +174,7 @@ def main(args):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='image path')
-    parser.add_argument('--image', nargs='?', type=str, default='demo/tr_img_09961.jpg',    
+    parser.add_argument('--img', nargs='?', type=str, default='demo/tr_img_09961.jpg',    
                         help='Path to test image')
     args = parser.parse_args()
     main(args)
