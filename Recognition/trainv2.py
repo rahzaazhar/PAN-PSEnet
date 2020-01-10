@@ -170,7 +170,7 @@ def train(opt):
 
         while(i<LangDataDict[current_lang].numiters):
        
-            print('iter:',i)
+            print('iter:',globaliter)
             image_tensors, labels = LangDataDict[current_lang].train_dataset.get_batch()
             image = image_tensors.to(device)
             text, length = LangDataDict[lang].labelconverter.encode(labels, batch_max_length=opt.batch_max_length)
@@ -206,7 +206,7 @@ def train(opt):
             loss_avg.add(cost)
 
             # validation part
-            if i % opt.valInterval == 0:
+            if globaliter % opt.valInterval == 0:
                 elapsed_time = time.time() - start_time
                 print(f'[{globaliter}/{opt.num_iter}] Loss: {loss_avg.val():0.5f} elapsed_time: {elapsed_time:0.5f} batch_ratio(Syn-Real):{opt.batch_ratio} Training on {current_lang} now')
                 log = open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a')
