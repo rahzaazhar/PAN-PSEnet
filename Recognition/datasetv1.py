@@ -16,7 +16,7 @@ import torchvision.transforms as transforms
 
 class Batch_Balanced_Dataset(object):
 
-    def __init__(self, opt, langdir, batch_ratio, select_data):#added langdir is directory with real and syn training data for given lang-ban,hin,eng....
+    def __init__(self, opt, langdir,lang,batch_ratio, select_data):#added langdir is directory with real and syn training data for given lang-ban,hin,eng....
         """
         Modulate the data ratio in the batch.
         For example, when select_data is "MJ-ST" and batch_ratio is "0.5-0.5",
@@ -37,7 +37,7 @@ class Batch_Balanced_Dataset(object):
         for selected_d, batch_ratio_d in zip(self.select_data, self.batch_ratio):
             _batch_size = max(round(opt.batch_size * float(batch_ratio_d)), 1)
             print('-' * 80)
-            _dataset = hierarchical_dataset(root=langdir, opt=opt, select_data=[selected_d])
+            _dataset = hierarchical_dataset(lang,root=langdir, opt=opt, select_data=[selected_d])
             total_number_dataset = len(_dataset)
 
             """
@@ -68,7 +68,7 @@ class Batch_Balanced_Dataset(object):
         opt.batch_size = Total_batch_size
         print('-' * 80)
 
-    def get_batch(self):
+    def get_batch(self):#@azhar
         balanced_batch_images = []
         balanced_batch_texts = []
 
@@ -110,7 +110,7 @@ class Batch_Balanced_Dataset(object):
 
 
 
-def hierarchical_dataset(root, opt, select_data='/'):
+def hierarchical_dataset(lang,root,opt, select_data='/'):
     """ select_data='/' contains all sub-directory of root directory """
     dataset_list = []
     print(f'dataset_root:    {root}\t dataset: {select_data[0]}')
@@ -123,7 +123,7 @@ def hierarchical_dataset(root, opt, select_data='/'):
                     break
 
             if select_flag:
-                dataset = LmdbDataset(dirpath, opt)
+                dataset = LmdbDataset(dirpath, opt, lang)
                 print(f'sub-directory:\t/{os.path.relpath(dirpath, root)}\t num samples: {len(dataset)}')
                 dataset_list.append(dataset)
 
@@ -134,8 +134,8 @@ def hierarchical_dataset(root, opt, select_data='/'):
 
 class LmdbDataset(Dataset):
 
-    def __init__(self, root, opt):
-
+    def __init__(self, root, opt, lang):
+        self.lang = lang
         self.root = root
         self.opt = opt
         self.env = lmdb.open(root, max_readers=32, readonly=True, lock=False, readahead=False, meminit=False)
@@ -168,7 +168,10 @@ class LmdbDataset(Dataset):
 
                     # By default, images containing characters which are not in opt.character are filtered.
                     # You can add [UNK] token to `opt.character` in utils.py instead of this filtering.
-                    out_of_char = f'[^{self.opt.character}]'
+                    #print(self.opt.character[lang])
+                    #print('donkeyyyyyyyy Konggggggg')
+                    out_of_char = f'[^{self.opt.character[lang]}]'
+                    #print(out_of_char)
                     if re.search(out_of_char, label.lower()):
                         continue
 
@@ -211,7 +214,7 @@ class LmdbDataset(Dataset):
                 label = label.lower()
 
             # We only train and evaluate on alphanumerics (or pre-defined character set in train.py)
-            out_of_char = f'[^{self.opt.character}]'
+            out_of_char = f'[^{self.opt.character[self.lang]}]'
             label = re.sub(out_of_char, '', label)
 
             #print(label)
