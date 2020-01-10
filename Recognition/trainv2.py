@@ -260,11 +260,11 @@ def train(opt):
 
 
             # save model per 1e+3 iter.
-            if (i) % 1e+3 == 0:
+            if (globaliter) % 1e+3 == 0:
                 torch.save(
                     model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/'+current_lang+'iter_{i}.pth')
 
-            if i == opt.num_iter:
+            if globaliter == opt.num_iter:
                 print('end the training')
                 sys.exit()
             i += 1
