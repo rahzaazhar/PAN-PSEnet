@@ -11,7 +11,7 @@ from nltk.metrics.distance import edit_distance
 
 from utils import CTCLabelConverter, AttnLabelConverter, Averager
 from dataset import hierarchical_dataset, AlignCollate
-from model import Model
+from modelv1 import Model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -66,7 +66,7 @@ def benchmark_all_eval(model, criterion, converter, opt, calculate_infer_time=Fa
     return None
 
 
-def validation(model, criterion, evaluation_loader, converter, opt):
+def validation(model, criterion, evaluation_loader, converter, opt, lang):
     """ validation or evaluation """
     n_correct = 0
     norm_ED = 0
@@ -88,7 +88,7 @@ def validation(model, criterion, evaluation_loader, converter, opt):
         #length_for_loss.to(device)
         start_time = time.time()
         if 'CTC' in opt.Prediction:
-            preds = model(image, text_for_pred).log_softmax(2)
+            preds = model(image, text_for_pred, lang).log_softmax(2)
             forward_time = time.time() - start_time
 
             # Calculate evaluation loss for CTC deocder.

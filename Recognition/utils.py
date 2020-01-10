@@ -17,6 +17,7 @@ class CTCLabelConverter(object):
             self.dict[char] = i + 1
 
         self.character = ['[blank]'] + dict_character  # dummy '[blank]' token for CTCLoss (index 0)
+        print(self.dict)
 
     def encode(self, text, batch_max_length=25):
         """convert text-label into text-index.
@@ -123,19 +124,20 @@ class Averager(object):
 
 class tensorlog():
 
-    def __init__(self,dirr,inc,step=0):
+    def __init__(self,dirr,inc):
         self.writer = SummaryWriter(log_dir=dirr)
-        self.step = step
+        self.step = inc
         self.inc = inc
 
-    def record(self,model,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy):
+    def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist):
 
-        self.writer.add_scalar('Loss/train_loss',trainloss,self.step)
-        self.writer.add_scalar('Loss/Real_validation_loss',realvalloss,self.step)
-        self.writer.add_scalar('Loss/Syn_validation_loss', synvalloss,self.step)
-        self.writer.add_scalar('accuracy/train_accuracy',trainacc,self.step)
-        self.writer.add_scalar('accuracy/Real_validation_accuracy',realvalaccuracy,self.step)
-        self.writer.add_scalar('accuracy/Syn_validation_accuracy',synvalaccuracy,self.step)
+        self.writer.add_scalar(lang+'/Loss/train_loss',trainloss,self.step)
+        self.writer.add_scalar(lang+'/Loss/Real_validation_loss',realvalloss,self.step)
+        self.writer.add_scalar(lang+'/Loss/Syn_validation_loss', synvalloss,self.step)
+        self.writer.add_scalar(lang+'/accuracy/train_accuracy',trainacc,self.step)
+        self.writer.add_scalar(lang+'/accuracy/Real_validation_accuracy',realvalaccuracy,self.step)
+        self.writer.add_scalar(lang+'/accuracy/Syn_validation_accuracy',synvalaccuracy,self.step)
+        self.writer.add_scalar(lang+'/edit-dist/Real_edit-dis',real_editdist,self.step)
 
         for tag,value in model.named_parameters():
             tag = tag.replace('.', '/')

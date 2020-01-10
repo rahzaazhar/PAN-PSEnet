@@ -16,15 +16,17 @@ import torchvision.transforms as transforms
 
 class Batch_Balanced_Dataset(object):
 
-    def __init__(self, opt):
+    def __init__(self, opt, langdir, batch_ratio, select_data):#added langdir is directory with real and syn training data for given lang-ban,hin,eng....
         """
         Modulate the data ratio in the batch.
         For example, when select_data is "MJ-ST" and batch_ratio is "0.5-0.5",
         the 50% of the batch is filled with MJ and the other 50% of the batch is filled with ST.
         """
+        self.batch_ratio = batch_ratio
+        self.select_data = select_data
         print('-' * 80)
-        print(f'dataset_root: {opt.train_data}\nopt.select_data: {opt.select_data}\nopt.batch_ratio: {opt.batch_ratio}')
-        assert len(opt.select_data) == len(opt.batch_ratio)
+        print(f'dataset_root: {langdir}\nselect_data: {self.select_data}\nself.batch_ratio: {self.batch_ratio}')
+        assert len(self.select_data) == len(self.batch_ratio)
 
         _AlignCollate = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
         self.data_loader_list = {}
@@ -32,10 +34,10 @@ class Batch_Balanced_Dataset(object):
         self.dataset_dict = {}
         batch_size_list = []
         Total_batch_size = 0
-        for selected_d, batch_ratio_d in zip(opt.select_data, opt.batch_ratio):
+        for selected_d, batch_ratio_d in zip(self.select_data, self.batch_ratio):
             _batch_size = max(round(opt.batch_size * float(batch_ratio_d)), 1)
             print('-' * 80)
-            _dataset = hierarchical_dataset(root=opt.train_data, opt=opt, select_data=[selected_d])
+            _dataset = hierarchical_dataset(root=langdir, opt=opt, select_data=[selected_d])
             total_number_dataset = len(_dataset)
 
             """
@@ -82,16 +84,17 @@ class Batch_Balanced_Dataset(object):
                 balanced_batch_images.append(image)
                 balanced_batch_texts += text
             except ValueError:
+                print('errrrr')
                 pass
 
         balanced_batch_images = torch.cat(balanced_batch_images, 0)
         print('total:',balanced_batch_images.size())
 
         return balanced_batch_images, balanced_batch_texts
-#added this function to change batch ratio
-    def change_batch_ratio(self,opt):
+
+    def change_batch_ratio(self,batch_ratio):
         _AlignCollate = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
-        for selected_d, batch_ratio in zip(opt.select_data,opt.batch_ratio):
+        for selected_d, batch_ratio in zip(self.select_data,self.batch_ratio):
             _batch_size = max(round(opt.batch_size * float(batch_ratio)), 0)
             _data_loader = torch.utils.data.DataLoader(
                 self.dataset_dict[selected_d], batch_size=_batch_size,
@@ -142,9 +145,12 @@ class LmdbDataset(Dataset):
 
         with self.env.begin(write=False) as txn:
             nSamples = int(txn.get('num-samples'.encode()))
+            #print(nSamples,'in root:',root)
             self.nSamples = nSamples
+            #print(self.opt.data_filtering_off)
 
             if self.opt.data_filtering_off:
+                print('donot filter')
                 # for fast check with no filtering
                 self.filtered_index_list = [index + 1 for index in range(self.nSamples)]
             else:
@@ -207,6 +213,8 @@ class LmdbDataset(Dataset):
             # We only train and evaluate on alphanumerics (or pre-defined character set in train.py)
             out_of_char = f'[^{self.opt.character}]'
             label = re.sub(out_of_char, '', label)
+
+            #print(label)
 
         return (img, label)
 

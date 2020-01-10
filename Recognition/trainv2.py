@@ -5,6 +5,7 @@ import random
 import string
 import argparse
 from collections import deque
+from dataclasses import dataclass, replace
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -19,6 +20,47 @@ from modelv1 import Model
 from test import validation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+
+class LanguageData(object):
+    def __init__(self,opt,lang,numiters,useSyn=True):
+        self.AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
+        self.lang = lang
+        self.current_iter = 1
+        self.best_accuracy = 0
+        self.best_norm_ED = 0
+        self.numiters = int(numiters)
+        self.useSyn = useSyn
+        self.num_classes = len(opt.character[lang])
+        #loaders and datasets
+        #put usesyn in config 
+        if self.useSyn:
+            self.train_dataset = Batch_Balanced_Dataset(opt,opt.train_data+'/train_'+self.lang,self.lang,batch_ratio=[0.5,0.5],select_data=['Syn','Real'])
+            self.Tvalid_dataset = hierarchical_dataset(self.lang,root=opt.train_data+'/train_'+self.lang, opt=opt)
+            self.Tvalid_loader = self.genLoader(opt,self.Tvalid_dataset)
+            self.Rvalid_dataset = hierarchical_dataset(self.lang,root=opt.valid_data+'/val_'+self.lang+'/Real',opt=opt)
+            self.Rvalid_loader = self.genLoader(opt,self.Rvalid_dataset)
+            self.Synvalid_dataset = hierarchical_dataset(self.lang,root=opt.valid_data+'/val_'+self.lang+'/Syn', opt=opt)
+            self.Synvalid_loader = self.genLoader(opt,self.Synvalid_dataset)
+        else:
+            self.train_dataset = Batch_Balanced_Dataset(opt,opt.train_data+'/train_'+self.lang,self.lang,batch_ratio=[1.0],select_data=['Real'])
+            self.Tvalid_dataset = hierarchical_dataset(self.lang,root=opt.train_data+'/train_'+self.lang, opt=opt, select_data=['Real'])
+            self.Tvalid_loader = self.genLoader(opt,self.Tvalid_dataset)
+            self.Rvalid_dataset = hierarchical_dataset(self.lang,root=opt.valid_data+'/val_'+self.lang+'/Real',opt=opt)
+            self.Rvalid_loader = self.genLoader(opt,self.Rvalid_dataset)
+
+        if 'CTC' in opt.Prediction:
+            self.labelconverter = CTCLabelConverter(opt.character[lang])
+        else:
+            self.labelconverter = AttnLabelConverter(opt.character[lang])
+
+    def genLoader(self,opt,dataset):
+        return torch.utils.data.DataLoader(
+                dataset, batch_size=opt.batch_size,
+                shuffle=True,  # 'True' to check training progress with validation function.
+                num_workers=int(opt.workers),
+                collate_fn=self.AlignCollate_valid, pin_memory=True)
+
 def train(opt):
     """ dataset preparation """
     opt.select_data = opt.select_data.split('-')#default will be syn and real
@@ -26,9 +68,11 @@ def train(opt):
     langs = deque(opt.langs) 
     print(opt.train_data)
     LangDataDict = {}
-    for lang,iterr,chars in zip(langs,opt.pli,opt.character):
-    	LangDataDict[lang] = LanguageData(opt,lang,iterr)
-    	chardict[lang] = len(chars)
+    chardict = {}
+    for lang,iterr in zip(langs,opt.pli):
+        print(lang,iterr)
+        LangDataDict[lang] = LanguageData(opt,lang,iterr)
+        chardict[lang] = len(opt.character[lang])
 
     print('-' * 80)
     """ model configuration """
@@ -66,7 +110,7 @@ def train(opt):
             model.load_state_dict(torch.load(opt.saved_model))
     print("Model:")
     print(model)
-    return
+    
 
     """ setup loss """
     if 'CTC' in opt.Prediction:
@@ -92,12 +136,12 @@ def train(opt):
         optimizer = optim.Adadelta(filtered_parameters, lr=opt.lr, rho=opt.rho, eps=opt.eps)
     print("Optimizer:")
     print(optimizer)
-
-    tflogger = tensorlog(dirr=f'runs/{opt.experiment_name}',inc=opt.valInterval)
+    #os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}', exist_ok=True)
+    tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs',inc=opt.valInterval)
 
     """ final options """
     # print(opt)
-    with open(f'./saved_models/{opt.experiment_name}/opt.txt', 'a') as opt_file:
+    with open(f'./{opt.exp_dir}/{opt.experiment_name}/opt.txt', 'a') as opt_file:
         opt_log = '------------ Options -------------\n'
         args = vars(opt)
         for k, v in args.items():
@@ -120,6 +164,7 @@ def train(opt):
 
     while(True):
         i = 1
+        # can replace this with for loop to provide customisable training schedules 
         current_lang = langs.popleft()
         langs.append(current_lang)
 
@@ -134,108 +179,110 @@ def train(opt):
             if 'CTC' in opt.Prediction:
                 preds = model(image, text, current_lang).log_softmax(2)
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
-	            preds = preds.permute(1, 0, 2)  # to use CTCLoss format
+                preds = preds.permute(1, 0, 2)  # to use CTCLoss format
 
-	            # (ctc_a) To avoid ctc_loss issue, disabled cudnn for the computation of the ctc_loss
-	            # https://github.com/jpuigcerver/PyLaia/issues/16
-	            torch.backends.cudnn.enabled = False
-	            cost = criterion(preds, text.to(device), preds_size.to(device), length.to(device))
-	            torch.backends.cudnn.enabled = True
+                # (ctc_a) To avoid ctc_loss issue, disabled cudnn for the computation of the ctc_loss
+                # https://github.com/jpuigcerver/PyLaia/issues/16
+                torch.backends.cudnn.enabled = False
+                cost = criterion(preds, text.to(device), preds_size.to(device), length.to(device))
+                torch.backends.cudnn.enabled = True
 
-	            # # (ctc_b) To reproduce our pretrained model / paper, use our previous code (below code) instead of (ctc_a).
-	            # # With PyTorch 1.2.0, the below code occurs NAN, so you may use PyTorch 1.1.0.
-	            # # Thus, the result of CTCLoss is different in PyTorch 1.1.0 and PyTorch 1.2.0.
-	            # # See https://github.com/clovaai/deep-text-recognition-benchmark/issues/56#issuecomment-526490707
-	            # cost = criterion(preds, text, preds_size, length)
+                # # (ctc_b) To reproduce our pretrained model / paper, use our previous code (below code) instead of (ctc_a).
+                # # With PyTorch 1.2.0, the below code occurs NAN, so you may use PyTorch 1.1.0.
+                # # Thus, the result of CTCLoss is different in PyTorch 1.1.0 and PyTorch 1.2.0.
+                # # See https://github.com/clovaai/deep-text-recognition-benchmark/issues/56#issuecomment-526490707
+                # cost = criterion(preds, text, preds_size, length)
 
-	        else:
-	            preds = model(image, text[:, :-1]) # align with Attention.forward
-	            target = text[:, 1:]  # without [GO] Symbol
-	            cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
+            else:
+                preds = model(image, text[:, :-1]) # align with Attention.forward
+                target = text[:, 1:]  # without [GO] Symbol
+                cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
 
-	        model.zero_grad()
-	        cost.backward()
-	        torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)  # gradient clipping with 5 (Default)
-	        optimizer.step()
+            model.zero_grad()
+            cost.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)  # gradient clipping with 5 (Default)
+            optimizer.step()
 
-	        loss_avg.add(cost)
+            loss_avg.add(cost)
 
-	        # validation part
-	        if i % opt.valInterval == 0:
-	            elapsed_time = time.time() - start_time
-	            print(f'[{LangDataDict[current_lang].current_iter}/{LangDataDict[current_lang].numiters}] Loss: {loss_avg.val():0.5f} elapsed_time: {elapsed_time:0.5f} batch_ratio(Syn-Real):{opt.batch_ratio} Training on {current_lang} now')
-	            log = open(f'./saved_models/{opt.experiment_name}/log_train.txt', 'a')
-	            log.write(f'[{LangDataDict[current_lang].current_iter}/{LangDataDict[current_lang].numiters}] Loss: {loss_avg.val():0.5f} elapsed_time: {elapsed_time:0.5f} batch_ratio(Syn-Real):{opt.batch_ratio} Training on {current_lang} now\n')
-	            model.eval()
+            # validation part
+            if i % opt.valInterval == 0:
+                elapsed_time = time.time() - start_time
+                print(f'[{globaliter}/{opt.num_iter}] Loss: {loss_avg.val():0.5f} elapsed_time: {elapsed_time:0.5f} batch_ratio(Syn-Real):{opt.batch_ratio} Training on {current_lang} now')
+                log = open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a')
+                log.write(f'[{globaliter}/{opt.num_iter}] Loss: {loss_avg.val():0.5f} elapsed_time: {elapsed_time:0.5f} batch_ratio(Syn-Real):{opt.batch_ratio} Training on {current_lang} now\n')
+                model.eval()
 
                 #validating and recording metrics on all languages
-	            for lang in langs:
-	            	#Synvalidloss,Syn_valid_acc, Real_valid_loss, current_accuracy, current_norm_ED, train_accuracy = languagelog(opt,model,)
-	                print('-'*18+'Start Validating on '+lang+'-'*18)
-	                metrics[lang]=languagelog(opt,model,LangDataDict[lang],globaliter)
+                for lang in langs:
+                    #Synvalidloss,Syn_valid_acc, Real_valid_loss, current_accuracy, current_norm_ED, train_accuracy = languagelog(opt,model,)
+                    print('-'*18+'Start Validating on '+lang+'-'*18)
+                    metrics[lang]=languagelog(opt,model,LangDataDict[lang],globaliter,criterion)
 
-	            model.train()
-	            save_accuracy_model_flag = True
-	            save_ED_model_flag = True
-	            for lang in langs:
-	            	if not metrics[lang][3] > LangDataDict[lang].best_accuracy:
-	            		save_accuracy_model_flag = False
-	            	if not metrics[lang][4] > LangDataDict[lang].best_norm_ED:
-	            		save_ED_model_flag = False
+                model.train()
+                save_accuracy_model_flag = True
+                save_ED_model_flag = True
+                for lang in langs:
+                    if not metrics[lang][3] > LangDataDict[lang].best_accuracy:
+                       save_accuracy_model_flag = False
+                    if not metrics[lang][4] > LangDataDict[lang].best_norm_ED:
+                       save_ED_model_flag = False
 
-	            if save_accuracy_model_flag:
-	            	for lang in langs:
-	                    LangDataDict[lang].best_accuracy = metrics[lang][3]
-	                torch.save(model.state_dict(), f'./saved_models/{opt.experiment_name}/best_accuracy.pth')
+                if save_accuracy_model_flag:
+                    for lang in langs:
+                        LangDataDict[lang].best_accuracy = metrics[lang][3]
+                    torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_accuracy.pth')
 
-	            if save_ED_model_flag:
-	            	for lang in langs:
-	            		LangDataDict[lang].best_norm_ED = metrics[lang][4]
-	            	torch.save(model.state_dict(), f'./saved_models/{opt.experiment_name}/best_norm_ED.pth')
-	                
-	            #with open(f'./saved_models/{opt.experiment_name}/log_train.txt', 'a') as log:
-	            best_model_log = f'best_accuracy: {LangDataDict[current_lang].best_accuracy:0.3f}, best_norm_ED: {LangDataDict[current_lang].best_norm_ED:0.2f}'
-	            print(best_model_log)
-	            log.write(best_model_log + '\n')
+                if save_ED_model_flag:
+                    for lang in langs:
+                        LangDataDict[lang].best_norm_ED = metrics[lang][4]
+                    torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_norm_ED.pth')
+                    
+                #with open(f'./saved_models/{opt.experiment_name}/log_train.txt', 'a') as log:
+                best_model_log = f'best_accuracy: {LangDataDict[current_lang].best_accuracy:0.3f}, best_norm_ED: {LangDataDict[current_lang].best_norm_ED:0.2f}'
+                print(best_model_log)
+                log = open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a')
+                log.write(best_model_log + '\n')
 
-	            tflogger.record(model,curent_lang,loss_avg.val(),Real_valid_loss,Synvalidloss,train_accuracy,current_accuracy,Syn_valid_acc)
-	            loss_avg.reset()
+                tflogger.record(model,current_lang,loss_avg.val(),metrics[current_lang][2],metrics[current_lang][0],metrics[current_lang][5],metrics[current_lang][3],metrics[current_lang][1],metrics[current_lang][4])
+                loss_avg.reset()
+                #tflogger for all languages has to be implemented takes in metrics dataclass of language as input
 
-	        '''if i==2000:
-	            opt.batch_ratio = batch_ratio_schedule.nextele()
-	            train_dataset.change_batch_ratio(opt)
-	        if i==5000:
-	        	opt.batch_ratio = batch_ratio_schedule.nextele()
-	            train_dataset.change_batch_ratio(opt)'''
-	        '''if (i%10)==0:
-	            opt.batch_ratio = batch_ratio_schedule.nextele()
-	            train_dataset.change_batch_ratio(opt)'''
-
-
-	        # save model per 1e+3 iter.
-	        if (i) % 1e+3 == 0:
-	            torch.save(
-	                model.state_dict(), f'./saved_models/{opt.experiment_name}/'+current_lang+'iter_{i}.pth')
-
-	        if i == opt.num_iter:
-	            print('end the training')
-	            sys.exit()
-	        i += 1
-	        LangDataDict[current_lang].current_iter += 1
-	        globaliter += 1 
+            '''if i==2000:
+                opt.batch_ratio = batch_ratio_schedule.nextele()
+                train_dataset.change_batch_ratio(opt)
+            if i==5000:
+                opt.batch_ratio = batch_ratio_schedule.nextele()
+                train_dataset.change_batch_ratio(opt)'''
+            '''if (i%10)==0:
+                opt.batch_ratio = batch_ratio_schedule.nextele()
+                train_dataset.change_batch_ratio(opt)'''
 
 
-def languagelog(opt,model,LangData,globaliter):
-	with open(f'./saved_models/{opt.experiment_name}/log_train.txt', 'a') as log:
-		log.write('#'*18+'Start Validating on '+LangData.lang+'#'*18+'\n')
-	    log.write('validating on Synthetic data\n')
-	    Synvalidloss, Syn_valid_acc,_ = validate(opt,model,criterion, LangData.Synvalid_loader, LangData.labelconverter,log,globaliter,'Syn-val-loss',LangData.lang)
-	    log.write('validating on Real data\n')
-	    Real_valid_loss,Real_valid_accuracy,Real_valid_norm_ED = validate(opt,model,criterion, LangData.Rvalid_loader, LangData.labelconverter,log,globaliter,'Real-val-loss',LangData.lang)
-	    log.write('Evaluating on Train data\n')
-	    _,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang)
+            # save model per 1e+3 iter.
+            if (i) % 1e+3 == 0:
+                torch.save(
+                    model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/'+current_lang+'iter_{i}.pth')
 
-	return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy]
+            if i == opt.num_iter:
+                print('end the training')
+                sys.exit()
+            i += 1
+            LangDataDict[current_lang].current_iter += 1
+            globaliter += 1 
+
+
+def languagelog(opt,model,LangData,globaliter,criterion):
+    with open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a') as log:
+        log.write('#'*18+'Start Validating on '+LangData.lang+'#'*18+'\n')
+        log.write('validating on Synthetic data\n')
+        Synvalidloss, Syn_valid_acc,_ = validate(opt,model,criterion, LangData.Synvalid_loader, LangData.labelconverter,log,globaliter,'Syn-val-loss',LangData.lang)
+        log.write('validating on Real data\n')
+        Real_valid_loss,Real_valid_accuracy,Real_valid_norm_ED = validate(opt,model,criterion, LangData.Rvalid_loader, LangData.labelconverter,log,globaliter,'Real-val-loss',LangData.lang)
+        log.write('Evaluating on Train data\n')
+        _,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang)
+
+    return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy]
 
 def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):
     #print('enter validate')
@@ -258,9 +305,10 @@ def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--exp_dir', help='Directory for all experiments')
     parser.add_argument('--experiment_name', help='Where to store logs and models')
-    parser.add_argument('--train_data', nargs='+', help='list of sub-directories for  training dataset', required=True)
-    parser.add_argument('--valid_data', nargs='+', help='list of sub-directories for  training dataset', required=True)
+    parser.add_argument('--train_data', help='list of sub-directories for  training dataset', required=True)
+    parser.add_argument('--valid_data', help='list of sub-directories for  training dataset', required=True)
     #parser.add_argument('--train_data', required=True, help='list of sub-directories for  training dataset')
     #parser.add_argument('--valid_data', required=True, help='list of sub-directories for  validation dataset')
     #parser.add_argument('--Synvalid_data', required=True, help='path to validation dataset')
@@ -312,7 +360,7 @@ if __name__ == '__main__':
         opt.experiment_name += f'-Seed{opt.manualSeed}'
         # print(opt.experiment_name)
 
-    os.makedirs(f'./saved_models/{opt.experiment_name}', exist_ok=True)
+    os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}', exist_ok=True)
 
     """ vocab / character number configuration """
     char_dict = {}
@@ -326,6 +374,7 @@ if __name__ == '__main__':
         char_dict[line.split(',')[0]] = line.strip().split(',')[-1]
 
     opt.character = char_dict#@azhar
+    print(opt.character)
 
     """ Seed and GPU setting """
     # print("Random Seed: ", opt.manualSeed)
@@ -356,46 +405,10 @@ if __name__ == '__main__':
     train(opt)
 
 
-class LanguageData(object):
-    def __init__(self,opt,lang,numiters,useSyn=True):
-        AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
-        self.lang = lang
-        self.current_iter = 1
-        self.best_accuracy = 0
-        self.best_norm_ED = 0
-        self.numiters = numiters
-        self.useSyn = useSyn
-        self.num_classes = len(opt.character[lang])
-        #loaders and datasets
-        if self.useSyn:
-            self.train_dataset = Batch_Balanced_Dataset(opt,opt.train_data+'/train_'+self.lang,batch_ratio=[0.5,0.5],select_data=['Syn','Real'])
-            self.Tvalid_dataset = hierarchical_dataset(root=opt.train_data+'/train_'+self.lang, opt=opt)
-            self.Tvalid_loader = genLoader(opt,self.Tvalid_dataset)
-            self.Rvalid_dataset = hierarchical_dataset(root=opt.valid_data+'/val_'+self.lang+'/Real',opt=opt)
-            self.Rvalid_loader = genLoader(opt,self.Rvalid_dataset)
-            self.Synvalid_dataset = hierarchical_dataset(root=opt.valid_data+'/val_'+self.lang+'/Syn', opt=opt)
-            self.Synvalid_loader = genLoader(opt,self.Synvalid_dataset)
-        else:
-            self.train_dataset = Batch_Balanced_Dataset(opt,opt.train_data+'/train_'+self.lang,batch_ratio=[1.0],select_data=['Real'])
-            self.Tvalid_dataset = hierarchical_dataset(root=opt.train_data+'/train_'+self.lang, opt=opt, select_data=['Real'])
-            self.Tvalid_loader = genLoader(opt,self.Tvalid_dataset)
-            self.Rvalid_dataset = hierarchical_dataset(root=opt.valid_data+'/val_'+self.lang+'/Real',opt=opt)
-            self.Rvalid_loader = genLoader(opt,self.Rvalid_dataset)
 
-        if 'CTC' in opt.Prediction:
-        	self.labelconverter = CTCLabelConverter(opt.character[lang])
-        else:
-        	self.labelconverter = AttnLabelConverter(opt.character[lang])
 
             
-def genLoader(opt,dataset):
-	return torch.utils.data.DataLoader(
-            dataset, batch_size=opt.batch_size,
-            shuffle=True,  # 'True' to check training progress with validation function.
-            num_workers=int(opt.workers),
-            collate_fn=AlignCollate_valid, pin_memory=True)
-
-	
 
 
-
+#@dataclass
+#class metrics:
