@@ -23,7 +23,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class LanguageData(object):
-    def __init__(self,opt,lang,numiters,useSyn=True):
+    def __init__(self, opt, lang, numiters, useSyn=True):
         self.AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
         self.lang = lang
         self.current_iter = 1
@@ -35,8 +35,8 @@ class LanguageData(object):
         #loaders and datasets
         #put usesyn in config 
         if self.useSyn:
-            self.train_dataset = Batch_Balanced_Dataset(opt,opt.train_data+'/train_'+self.lang,self.lang,batch_ratio=[0.5,0.5],select_data=['Syn','Real'])
-            self.Tvalid_dataset = hierarchical_dataset(self.lang,root=opt.train_data+'/train_'+self.lang, opt=opt)
+            self.train_dataset = Batch_Balanced_Dataset(opt, opt.train_data+'/train_'+self.lang, self.lang, batch_ratio=[0.5,0.5], select_data=['Syn','Real'])
+            self.Tvalid_dataset = hierarchical_dataset(self.lang, root=opt.train_data+'/train_'+self.lang, opt=opt)
             self.Tvalid_loader = self.genLoader(opt,self.Tvalid_dataset)
             self.Rvalid_dataset = hierarchical_dataset(self.lang,root=opt.valid_data+'/val_'+self.lang+'/Real',opt=opt)
             self.Rvalid_loader = self.genLoader(opt,self.Rvalid_dataset)
@@ -75,92 +75,15 @@ def train(opt):
         chardict[lang] = len(opt.character[lang])
 
     print('-' * 80)
-    """ model configuration """
-    #opt.num_class = len(converter.character)
-    if opt.rgb:
-        opt.input_channel = 3
-    model = Model(opt,chardict)
-    print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
-          opt.hidden_size, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
-          opt.SequenceModeling, opt.Prediction)
 
-    # weight initialization
-    for name, param in model.named_parameters():
-        if 'localization_fc2' in name:
-            print(f'Skip {name} as it is already initialized')
-            continue
-        try:
-            if 'bias' in name:
-                init.constant_(param, 0.0)
-            elif 'weight' in name:
-                init.kaiming_normal_(param)
-        except Exception as e:  # for batchnorm.
-            if 'weight' in name:
-                param.data.fill_(1)
-            continue
-
-    # data parallel for multi-GPU
-    model = torch.nn.DataParallel(model).to(device)
-    model.train()
-    if opt.saved_model != '':
-        print(f'loading pretrained model from {opt.saved_model}')
-        if opt.FT:
-            model.load_state_dict(torch.load(opt.saved_model), strict=False)
-        else:
-            model.load_state_dict(torch.load(opt.saved_model))
-    print("Model:")
-    print(model)
-    
-
-    """ setup loss """
-    if 'CTC' in opt.Prediction:
-        criterion = torch.nn.CTCLoss(zero_infinity=True).to(device)
-    else:
-        criterion = torch.nn.CrossEntropyLoss(ignore_index=0).to(device)  # ignore [GO] token = ignore index 0
-    # loss averager
-    loss_avg = Averager()
-
-    # filter that only require gradient decent
-    filtered_parameters = []
-    params_num = []
-    for p in filter(lambda p: p.requires_grad, model.parameters()):
-        filtered_parameters.append(p)
-        params_num.append(np.prod(p.size()))
-    print('Trainable params num : ', sum(params_num))
-    # [print(name, p.numel()) for name, p in filter(lambda p: p[1].requires_grad, model.named_parameters())]
-
-    # setup optimizer
-    if opt.adam:
-        optimizer = optim.Adam(filtered_parameters, lr=opt.lr, betas=(opt.beta1, 0.999))
-    else:
-        optimizer = optim.Adadelta(filtered_parameters, lr=opt.lr, rho=opt.rho, eps=opt.eps)
-    print("Optimizer:")
-    print(optimizer)
-    #os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}', exist_ok=True)
-    tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs',inc=opt.valInterval)
-
-    """ final options """
-    # print(opt)
-    with open(f'./{opt.exp_dir}/{opt.experiment_name}/opt.txt', 'a') as opt_file:
-        opt_log = '------------ Options -------------\n'
-        args = vars(opt)
-        for k, v in args.items():
-            opt_log += f'{str(k)}: {str(v)}\n'
-        opt_log += '---------------------------------------\n'
-        print(opt_log)
-        opt_file.write(opt_log)
-
-    """ start training """
-    '''if opt.saved_model != '':
-        start_iter = int(opt.saved_model.split('_')[-1].split('.')[0])
-        print(f'continue to train, start_iter: {start_iter}')  commented this out as I am not saving models'''
+    model, criterion, optimizer = setup(opt,chardict)
+    printOptions(opt)
 
     start_time = time.time()
-    '''best_accuracy = -1
-    best_norm_ED = 0
-    i = start_iter'''
     metrics = {}
     globaliter = 1
+    loss_avg = Averager()
+    tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs',inc=opt.valInterval)
 
     while(True):
         i = 1
@@ -272,7 +195,7 @@ def train(opt):
             globaliter += 1 
 
 
-def languagelog(opt,model,LangData,globaliter,criterion):
+def languagelog(opt,model,LangData,globaliter,criterion):#@azhar modified 
     with open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a') as log:
         log.write('#'*18+'Start Validating on '+LangData.lang+'#'*18+'\n')
         log.write('validating on Synthetic data\n')
@@ -284,7 +207,7 @@ def languagelog(opt,model,LangData,globaliter,criterion):
 
     return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy]
 
-def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):
+def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):#@azhar
     #print('enter validate')
     with torch.no_grad():
         valid_loss, current_accuracy, current_norm_ED, preds, labels, infer_time, length_of_data = validation(
@@ -301,6 +224,107 @@ def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):
     log.write(valid_log + '\n')
     return valid_loss, current_accuracy, current_norm_ED
 
+def setup(opt,chardict):
+    """ model configuration """
+
+    if opt.rgb:
+        opt.input_channel = 3
+    
+    model = Model(opt,chardict)
+    print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
+          opt.hidden_size, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
+          opt.SequenceModeling, opt.Prediction)
+
+
+    # data parallel for multi-GPU
+    model = torch.nn.DataParallel(model).to(device)
+    model.train()
+    if opt.saved_model != '':
+        print(f'loading pretrained model from {opt.saved_model}')
+        if opt.FT:
+            model.load_state_dict(torch.load(opt.saved_model), strict=False)
+        else:
+            model.load_state_dict(torch.load(opt.saved_model))
+    
+    print("Model:")
+    print(model)
+
+    model = weight_innit(model)
+    model = load_sharedW(model,opt)
+    
+
+    """ setup loss """
+    if 'CTC' in opt.Prediction:
+        criterion = torch.nn.CTCLoss(zero_infinity=True).to(device)
+    else:
+        criterion = torch.nn.CrossEntropyLoss(ignore_index=0).to(device)  # ignore [GO] token = ignore index 0
+    
+
+    # filter that only require gradient decent
+    filtered_parameters = []
+    params_num = []
+    for p in filter(lambda p: p.requires_grad, model.parameters()):
+        filtered_parameters.append(p)
+        params_num.append(np.prod(p.size()))
+    print('Trainable params num : ', sum(params_num))
+    # [print(name, p.numel()) for name, p in filter(lambda p: p[1].requires_grad, model.named_parameters())]
+
+    
+    # setup optimizer
+    if opt.adam:
+        optimizer = optim.Adam(filtered_parameters, lr=opt.lr, betas=(opt.beta1, 0.999))
+    else:
+        optimizer = optim.Adadelta(filtered_parameters, lr=opt.lr, rho=opt.rho, eps=opt.eps)
+    print("Optimizer:")
+    print(optimizer)
+
+    return model, criterion, optimizer
+
+def load_sharedW(model,opt):
+    modules = list(model.named_children())
+    modules = list(modules[0][1].named_children())
+    for x,y in modules:
+        if x=='FeatureExtraction':
+            print('loading CNN module:',x)
+            y.load_state_dict(torch.load('CNN_hin_saved.pth'))#y.load_state_dict(torch.load(opt.spath))
+
+    '''for name, para in model.named_parameters():
+        print(name,para)'''
+
+    return model
+
+def printOptions(opt):
+    """ final options """
+    # print(opt)
+    with open(f'./{opt.exp_dir}/{opt.experiment_name}/opt.txt', 'a') as opt_file:
+        opt_log = '------------ Options -------------\n'
+        args = vars(opt)
+        for k, v in args.items():
+            opt_log += f'{str(k)}: {str(v)}\n'
+        opt_log += '---------------------------------------\n'
+        print(opt_log)
+        opt_file.write(opt_log)
+
+def weight_innit(model):
+    # weight initialization
+    for name, param in model.named_parameters():
+        if 'localization_fc2' in name:
+            print(f'Skip {name} as it is already initialized')
+            continue
+        try:
+            if 'bias' in name:
+                init.constant_(param, 0.0)
+            elif 'weight' in name:
+                init.kaiming_normal_(param)
+        except Exception as e:  # for batchnorm.
+            if 'weight' in name:
+                param.data.fill_(1)
+            continue
+    return model
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -309,6 +333,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_name', help='Where to store logs and models')
     parser.add_argument('--train_data', help='list of sub-directories for  training dataset', required=True)
     parser.add_argument('--valid_data', help='list of sub-directories for  training dataset', required=True)
+    parser.add_argument('--spath',help='path to shared weights')
     #parser.add_argument('--train_data', required=True, help='list of sub-directories for  training dataset')
     #parser.add_argument('--valid_data', required=True, help='list of sub-directories for  validation dataset')
     #parser.add_argument('--Synvalid_data', required=True, help='path to validation dataset')
@@ -370,7 +395,7 @@ if __name__ == '__main__':
     #if opt.sensitive:
     #    # opt.character += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     #    opt.character = string.printable[:-6]  # same with ASTER setting (use 94 char).
-    for line in lines:
+    for line in lines:#@azhar
         char_dict[line.split(',')[0]] = line.strip().split(',')[-1]
 
     opt.character = char_dict#@azhar
@@ -407,8 +432,21 @@ if __name__ == '__main__':
 
 
 
-            
+         
+'''class prettyprint:
+	def __init__(self,opt):
+		self.default_exp_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}-Seed{opt.manualSeed}'
+		self.exp_name = f'./{opt.exp_dir}/{opt.experiment_name}'
+		self.exp_log = self.exp_name+f'/{opt.experiment_name}_log.txt'
 
 
-#@dataclass
-#class metrics:
+
+
+@dataclass
+class metrics:
+	Real_
+
+""" start training """
+    if opt.saved_model != '':
+        start_iter = int(opt.saved_model.split('_')[-1].split('.')[0])
+        print(f'continue to train, start_iter: {start_iter}')  commented this out as I am not saving models'''
