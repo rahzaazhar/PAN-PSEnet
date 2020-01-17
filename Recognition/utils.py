@@ -131,13 +131,13 @@ class tensorlog():
 
     def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist):
 
-        self.writer.add_scalar(lang+'/Loss/train_loss',trainloss,self.step)
-        self.writer.add_scalar(lang+'/Loss/Real_validation_loss',realvalloss,self.step)
-        self.writer.add_scalar(lang+'/Loss/Syn_validation_loss', synvalloss,self.step)
-        self.writer.add_scalar(lang+'/accuracy/train_accuracy',trainacc,self.step)
-        self.writer.add_scalar(lang+'/accuracy/Real_validation_accuracy',realvalaccuracy,self.step)
-        self.writer.add_scalar(lang+'/accuracy/Syn_validation_accuracy',synvalaccuracy,self.step)
-        self.writer.add_scalar(lang+'/edit-dist/Real_edit-dis',real_editdist,self.step)
+        self.writer.add_scalar(lang+'/train_loss',trainloss,self.step)
+        self.writer.add_scalar(lang+'/Real_validation_loss',realvalloss,self.step)
+        self.writer.add_scalar(lang+'/Syn_validation_loss', synvalloss,self.step)
+        self.writer.add_scalar(lang+'/train_Wordaccuracy',trainacc,self.step)
+        self.writer.add_scalar(lang+'/Real_val_Wordaccuracy',realvalaccuracy,self.step)
+        self.writer.add_scalar(lang+'/Syn_val_Wordaccuracy',synvalaccuracy,self.step)
+        self.writer.add_scalar(lang+'/Real_val_edit-dist',real_editdist,self.step)
 
         for tag,value in model.named_parameters():
             tag = tag.replace('.', '/')

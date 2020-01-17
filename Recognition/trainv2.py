@@ -65,12 +65,20 @@ def train(opt):
     """ dataset preparation """
     opt.select_data = opt.select_data.split('-')#default will be syn and real
     opt.batch_ratio = opt.batch_ratio.split('-')#default will be Syn-0.8 Real-0.2
-    langs = deque(opt.langs) 
+    #langs = deque(opt.langs)
+    langQ = []
+    for lang,mode in zip(opt.langs, opt.mode):
+    	if mode=='train':
+    		langQ.append(lang)
+    langQ = deque(langQ)
+ 
     print(opt.train_data)
     LangDataDict = {}
-    for lang,iterr in zip(langs,opt.pli):
+    for lang,iterr in zip(opt.langs,opt.pli):
         print(lang,iterr)
         LangDataDict[lang] = LanguageData(opt,lang,iterr)
+
+
 
     print('-' * 80)
 
@@ -86,15 +94,15 @@ def train(opt):
     while(True):
         i = 1
         # can replace this with for loop to provide customisable training schedules 
-        current_lang = langs.popleft()
-        langs.append(current_lang)
+        current_lang = langQ.popleft()
+        langQ.append(current_lang)
 
         while(i<LangDataDict[current_lang].numiters):
        
             print('iter:',globaliter)
             image_tensors, labels = LangDataDict[current_lang].train_dataset.get_batch()
             image = image_tensors.to(device)
-            text, length = LangDataDict[lang].labelconverter.encode(labels, batch_max_length=opt.batch_max_length)
+            text, length = LangDataDict[current_lang].labelconverter.encode(labels, batch_max_length=opt.batch_max_length)
             batch_size = image.size(0)
 
             if 'CTC' in opt.Prediction:
@@ -135,7 +143,7 @@ def train(opt):
                 model.eval()
 
                 #validating and recording metrics on all languages
-                for lang in langs:
+                for lang in opt.langs:
                     #Synvalidloss,Syn_valid_acc, Real_valid_loss, current_accuracy, current_norm_ED, train_accuracy = languagelog(opt,model,)
                     print('-'*18+'Start Validating on '+lang+'-'*18)
                     metrics[lang]=languagelog(opt,model,LangDataDict[lang],globaliter,criterion)
@@ -143,19 +151,19 @@ def train(opt):
                 model.train()
                 save_accuracy_model_flag = True
                 save_ED_model_flag = True
-                for lang in langs:
+                for lang in langQ:
                     if not metrics[lang][3] > LangDataDict[lang].best_accuracy:
                        save_accuracy_model_flag = False
                     if not metrics[lang][4] > LangDataDict[lang].best_norm_ED:
                        save_ED_model_flag = False
 
                 if save_accuracy_model_flag:
-                    for lang in langs:
+                    for lang in langQ:
                         LangDataDict[lang].best_accuracy = metrics[lang][3]
                     torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_accuracy.pth')
 
                 if save_ED_model_flag:
-                    for lang in langs:
+                    for lang in langQ:
                         LangDataDict[lang].best_norm_ED = metrics[lang][4]
                     torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_norm_ED.pth')
                     
@@ -165,7 +173,9 @@ def train(opt):
                 log = open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a')
                 log.write(best_model_log + '\n')
 
-                tflogger.record(model,current_lang,loss_avg.val(),metrics[current_lang][2],metrics[current_lang][0],metrics[current_lang][5],metrics[current_lang][3],metrics[current_lang][1],metrics[current_lang][4])
+                for lang in opt.langs:
+                	tflogger.record(model,lang,loss_avg.val(),metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4])
+                
                 loss_avg.reset()
                 #tflogger for all languages has to be implemented takes in metrics dataclass of language as input
 
@@ -252,7 +262,9 @@ def setup(opt):
     print(model)
 
     model = weight_innit(model)
-    model = freeze_head(model,'ban')
+    for lang,mode in zip(opt.langs,opt.mode):
+    	if(mode!='train'):
+    		model = freeze_head(model,lang)
 
 
     #model = load_sharedW(model,opt)
@@ -375,6 +387,7 @@ if __name__ == '__main__':
                         help='assign ratio for each selected data in the batch')
     parser.add_argument('--total_data_usage_ratio', type=str, default='1.0',
                         help='total data usage ratio, this ratio is multiplied to total number of data.')
+    parser.add_argument('--mode',required=True,nargs='+',help='which mode train|validate|train&validate')
     parser.add_argument('--batch_max_length', type=int, default=30, help='maximum-label-length')
     parser.add_argument('--imgH', type=int, default=32, help='the height of the input image')
     parser.add_argument('--imgW', type=int, default=100, help='the width of the input image')
