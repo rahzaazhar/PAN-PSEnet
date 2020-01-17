@@ -250,6 +250,7 @@ def setup(opt):
 
     # data parallel for multi-GPU
     model = torch.nn.DataParallel(model).to(device)
+    model = weight_innit(model)
     model.train()
     if opt.saved_model != '':
         print(f'loading pretrained model from {opt.saved_model}')
@@ -261,7 +262,6 @@ def setup(opt):
     print("Model:")
     print(model)
 
-    model = weight_innit(model)
     for lang,mode in zip(opt.langs,opt.mode):
     	if(mode!='train'):
     		model = freeze_head(model,lang)
