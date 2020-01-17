@@ -68,15 +68,13 @@ def train(opt):
     langs = deque(opt.langs) 
     print(opt.train_data)
     LangDataDict = {}
-    chardict = {}
     for lang,iterr in zip(langs,opt.pli):
         print(lang,iterr)
         LangDataDict[lang] = LanguageData(opt,lang,iterr)
-        chardict[lang] = len(opt.character[lang])
 
     print('-' * 80)
 
-    model, criterion, optimizer = setup(opt,chardict)
+    model, criterion, optimizer = setup(opt)
     printOptions(opt)
 
     start_time = time.time()
@@ -224,11 +222,15 @@ def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):#@azhar
     log.write(valid_log + '\n')
     return valid_loss, current_accuracy, current_norm_ED
 
-def setup(opt,chardict):
+def setup(opt):
     """ model configuration """
 
     if opt.rgb:
         opt.input_channel = 3
+
+    chardict = {}
+    for lang,charlist in opt.character.items():
+        chardict[lang] = len(charlist)
     
     model = Model(opt,chardict)
     print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
@@ -250,7 +252,10 @@ def setup(opt,chardict):
     print(model)
 
     model = weight_innit(model)
-    model = load_sharedW(model,opt)
+    model = freeze_head(model,'ban')
+
+
+    #model = load_sharedW(model,opt)
     
 
     """ setup loss """
@@ -322,6 +327,17 @@ def weight_innit(model):
             continue
     return model
 
+#@azhar to freeze weights of task head 
+def freeze_head(model,head):
+    for name,param in model.named_parameters():
+        if head in name:
+        	param.requires_grad = False
+    return model
+
+#@azhar testing function    
+def paramCheck(model):
+    for name, param in model.named_parameters():
+        print(name,param.requires_grad) 
 
 
 
@@ -438,15 +454,12 @@ if __name__ == '__main__':
 		self.default_exp_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}-Seed{opt.manualSeed}'
 		self.exp_name = f'./{opt.exp_dir}/{opt.experiment_name}'
 		self.exp_log = self.exp_name+f'/{opt.experiment_name}_log.txt'
-
-
-
-
 @dataclass
 class metrics:
 	Real_
-
 """ start training """
     if opt.saved_model != '':
         start_iter = int(opt.saved_model.split('_')[-1].split('.')[0])
         print(f'continue to train, start_iter: {start_iter}')  commented this out as I am not saving models'''
+
+
