@@ -124,7 +124,7 @@ class Averager(object):
 
 class tensorlog():
 
-    def __init__(self,dirr,inc):
+    def __init__(self,dirr):
         self.writer = SummaryWriter(log_dir=dirr)
 
     def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist,Syn_val_ED, step):
