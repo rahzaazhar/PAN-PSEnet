@@ -315,6 +315,9 @@ def load_sharedW(model,opt):
         if x in checkpoint.keys() and 'FeatureExtraction' in x:
             y.data.copy_(checkpoint[x].data)
 
+        if x in checkpoint.keys() and 'hin' in x:
+            y.data.copy_(checkpoint[x].data)
+
         if ('rnn_lang' in x):
             s = x.split('.')
             s.insert(2,'hin')
