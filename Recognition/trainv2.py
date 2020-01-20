@@ -16,7 +16,7 @@ import numpy as np
 
 from utils import CTCLabelConverter, AttnLabelConverter, Averager, tensorlog, Scheduler
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
-from modelv1 import Model
+from modelv1 import Model, SharedLSTMModel
 from test import validation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -203,7 +203,7 @@ def train(opt):
             LangDataDict[current_lang].current_iter += 1
             globaliter += 1 
 
-
+#@azhar
 def languagelog(opt,model,LangData,globaliter,criterion):#@azhar modified 
     with open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a') as log:
         log.write('#'*18+'Start Validating on '+LangData.lang+'#'*18+'\n')
@@ -239,11 +239,17 @@ def setup(opt):
     if opt.rgb:
         opt.input_channel = 3
 
+    #@azhar
     chardict = {}
     for lang,charlist in opt.character.items():
         chardict[lang] = len(charlist)
     
-    model = Model(opt,chardict)
+    #@azhar
+    if opt.share=='CNN':
+        model = Model(opt,chardict)
+    if opt.share=='CNN+LSTM':
+        model = SharedLSTMModel(opt,chardict)    	
+
     print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
           opt.hidden_size, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
           opt.SequenceModeling, opt.Prediction)
@@ -298,6 +304,7 @@ def setup(opt):
 
     return model, criterion, optimizer
 
+#@azhar
 def load_sharedW(model,opt):
     modules = list(model.named_children())
     modules = list(modules[0][1].named_children())
@@ -358,16 +365,16 @@ def paramCheck(model):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_dir', help='Directory for all experiments')
+    parser.add_argument('--exp_dir', help='Directory for all experiments')#@azhar
     parser.add_argument('--experiment_name', help='Where to store logs and models')
     parser.add_argument('--train_data', help='list of sub-directories for  training dataset', required=True)
     parser.add_argument('--valid_data', help='list of sub-directories for  training dataset', required=True)
-    parser.add_argument('--spath',help='path to shared weights')
+    parser.add_argument('--spath',help='path to shared weights')#@azhar
     #parser.add_argument('--train_data', required=True, help='list of sub-directories for  training dataset')
     #parser.add_argument('--valid_data', required=True, help='list of sub-directories for  validation dataset')
     #parser.add_argument('--Synvalid_data', required=True, help='path to validation dataset')
-    parser.add_argument('--langs', required=True, nargs='+',help='list of languages to train on')
-    parser.add_argument('--pli', required=True, nargs='+',help='list of number of iteration per language')
+    parser.add_argument('--langs', required=True, nargs='+',help='list of languages to train on')#@azhar
+    parser.add_argument('--pli', required=True, nargs='+',help='list of number of iteration per language')#@azhar
     parser.add_argument('--manualSeed', type=int, default=1111, help='for random seed setting')
     parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
     parser.add_argument('--batch_size', type=int, default=192, help='input batch size')
@@ -402,6 +409,7 @@ if __name__ == '__main__':
     parser.add_argument('--FeatureExtraction', type=str, required=True, help='FeatureExtraction stage. VGG|RCNN|ResNet')
     parser.add_argument('--SequenceModeling', type=str, required=True, help='SequenceModeling stage. None|BiLSTM')
     parser.add_argument('--Prediction', type=str, required=True, help='Prediction stage. CTC|Attn')
+    parser.add_argument('--share', type=str, default='CNN', help='Share CNN|CNN+LSTM|CNN+SLSTM',)#@azhar
     parser.add_argument('--num_fiducial', type=int, default=20, help='number of fiducial points of TPS-STN')
     parser.add_argument('--input_channel', type=int, default=1, help='the number of input channel of Feature extractor')
     parser.add_argument('--output_channel', type=int, default=512,
