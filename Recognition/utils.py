@@ -141,10 +141,10 @@ class tensorlog():
         for tag,value in model.named_parameters():
             tag = tag.replace('.', '/')
             #print(tag) to diagnose gradients
-            self.writer.add_histogram('activation/'+tag,value.data.cpu().numpy(),self.step)
+            self.writer.add_histogram('activation/'+tag,value.data.cpu().numpy(),step)
             if value.requires_grad==True:
                 #print(tag,value.grad.data.cpu().numpy()) to diagnose gradients
-                self.writer.add_histogram('gradients/'+tag,value.grad.data.cpu().numpy(),self.step)
+                self.writer.add_histogram('gradients/'+tag,value.grad.data.cpu().numpy(),step)
 
 
         
