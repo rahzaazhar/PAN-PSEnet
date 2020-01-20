@@ -175,7 +175,7 @@ def train(opt):
                 log.write(best_model_log + '\n')
 
                 for lang in opt.langs:
-                	tflogger.record(model,lang,loss_avg.val(),metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4],globaliter)
+                	tflogger.record(model,lang,loss_avg.val(),metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4],metrics[lang][6],globaliter)
                 
                 loss_avg.reset()
                 #tflogger for all languages has to be implemented takes in metrics dataclass of language as input
@@ -208,13 +208,13 @@ def languagelog(opt,model,LangData,globaliter,criterion):#@azhar modified
     with open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a') as log:
         log.write('#'*18+'Start Validating on '+LangData.lang+'#'*18+'\n')
         log.write('validating on Synthetic data\n')
-        Synvalidloss, Syn_valid_acc,_ = validate(opt,model,criterion, LangData.Synvalid_loader, LangData.labelconverter,log,globaliter,'Syn-val-loss',LangData.lang)
+        Synvalidloss, Syn_valid_acc, SynvalED = validate(opt,model,criterion, LangData.Synvalid_loader, LangData.labelconverter,log,globaliter,'Syn-val-loss',LangData.lang)
         log.write('validating on Real data\n')
         Real_valid_loss,Real_valid_accuracy,Real_valid_norm_ED = validate(opt,model,criterion, LangData.Rvalid_loader, LangData.labelconverter,log,globaliter,'Real-val-loss',LangData.lang)
         log.write('Evaluating on Train data\n')
         _,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang)
 
-    return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy]
+    return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy, SynvalED]
 
 def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):#@azhar
     #print('enter validate')

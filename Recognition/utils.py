@@ -127,7 +127,7 @@ class tensorlog():
     def __init__(self,dirr,inc):
         self.writer = SummaryWriter(log_dir=dirr)
 
-    def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist,step):
+    def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist,Syn_val_ED, step):
 
         self.writer.add_scalar(lang+'/train_loss',trainloss,step)
         self.writer.add_scalar(lang+'/Real_validation_loss',realvalloss,step)
@@ -136,6 +136,7 @@ class tensorlog():
         self.writer.add_scalar(lang+'/Real_val_Wordaccuracy',realvalaccuracy,step)
         self.writer.add_scalar(lang+'/Syn_val_Wordaccuracy',synvalaccuracy,step)
         self.writer.add_scalar(lang+'/Real_val_edit-dist',real_editdist,step)
+        self.writer.add_scalar(lang+'/Syn_val_edit-dist',Syn_val_ED,step)
 
         for tag,value in model.named_parameters():
             tag = tag.replace('.', '/')
