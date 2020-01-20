@@ -258,6 +258,9 @@ def setup(opt):
     # data parallel for multi-GPU
     model = torch.nn.DataParallel(model).to(device)
     model = weight_innit(model)
+
+    model = load_sharedW(model,opt)
+
     model.train()
     if opt.saved_model != '':
         print(f'loading pretrained model from {opt.saved_model}')
@@ -274,7 +277,7 @@ def setup(opt):
     		model = freeze_head(model,lang)
 
 
-    #model = load_sharedW(model,opt)
+    
     
 
     """ setup loss """
@@ -306,12 +309,24 @@ def setup(opt):
 
 #@azhar
 def load_sharedW(model,opt):
-    modules = list(model.named_children())
+
+    checkpoint = torch.load(opt.saved_model)
+    for x,y in model.named_parameters():
+        if x in checkpoint.keys() and 'FeatureExtraction' in x:
+            y.data.copy_(checkpoint[x].data)
+
+        if ('rnn_lang' in x):
+            s = x.split('.')
+            s.insert(2,'hin')
+            s = '.'.join(s)
+            y.data.copy_(checkpoint[s].data)
+    
+    '''modules = list(model.named_children())
     modules = list(modules[0][1].named_children())
     for x,y in modules:
         if x=='FeatureExtraction':
             print('loading CNN module:',x)
-            y.load_state_dict(torch.load('CNN_hin_saved.pth'))#y.load_state_dict(torch.load(opt.spath))
+            y.load_state_dict(torch.load('CNN_hin_saved.pth'))#y.load_state_dict(torch.load(opt.spath))'''
 
     '''for name, para in model.named_parameters():
         print(name,para)'''
