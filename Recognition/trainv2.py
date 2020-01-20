@@ -89,7 +89,7 @@ def train(opt):
     metrics = {}
     globaliter = 1
     loss_avg = Averager()
-    tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs',inc=opt.valInterval)
+    tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs')
 
     while(True):
         i = 1
@@ -149,6 +149,7 @@ def train(opt):
                     metrics[lang]=languagelog(opt,model,LangDataDict[lang],globaliter,criterion)
 
                 model.train()
+                #replace saving by taking the best average value
                 save_accuracy_model_flag = True
                 save_ED_model_flag = True
                 for lang in langQ:
@@ -174,7 +175,7 @@ def train(opt):
                 log.write(best_model_log + '\n')
 
                 for lang in opt.langs:
-                	tflogger.record(model,lang,loss_avg.val(),metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4])
+                	tflogger.record(model,lang,loss_avg.val(),metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4],globaliter)
                 
                 loss_avg.reset()
                 #tflogger for all languages has to be implemented takes in metrics dataclass of language as input

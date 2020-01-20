@@ -126,18 +126,16 @@ class tensorlog():
 
     def __init__(self,dirr,inc):
         self.writer = SummaryWriter(log_dir=dirr)
-        self.step = inc
-        self.inc = inc
 
-    def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist):
+    def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist,step):
 
-        self.writer.add_scalar(lang+'/train_loss',trainloss,self.step)
-        self.writer.add_scalar(lang+'/Real_validation_loss',realvalloss,self.step)
-        self.writer.add_scalar(lang+'/Syn_validation_loss', synvalloss,self.step)
-        self.writer.add_scalar(lang+'/train_Wordaccuracy',trainacc,self.step)
-        self.writer.add_scalar(lang+'/Real_val_Wordaccuracy',realvalaccuracy,self.step)
-        self.writer.add_scalar(lang+'/Syn_val_Wordaccuracy',synvalaccuracy,self.step)
-        self.writer.add_scalar(lang+'/Real_val_edit-dist',real_editdist,self.step)
+        self.writer.add_scalar(lang+'/train_loss',trainloss,step)
+        self.writer.add_scalar(lang+'/Real_validation_loss',realvalloss,step)
+        self.writer.add_scalar(lang+'/Syn_validation_loss', synvalloss,step)
+        self.writer.add_scalar(lang+'/train_Wordaccuracy',trainacc,step)
+        self.writer.add_scalar(lang+'/Real_val_Wordaccuracy',realvalaccuracy,step)
+        self.writer.add_scalar(lang+'/Syn_val_Wordaccuracy',synvalaccuracy,step)
+        self.writer.add_scalar(lang+'/Real_val_edit-dist',real_editdist,step)
 
         for tag,value in model.named_parameters():
             tag = tag.replace('.', '/')
@@ -148,7 +146,7 @@ class tensorlog():
                 self.writer.add_histogram('gradients/'+tag,value.grad.data.cpu().numpy(),self.step)
 
 
-        self.step = self.step+self.inc
+        
 
 class Scheduler():
 
