@@ -310,7 +310,7 @@ def setup(opt):
 #@azhar
 def load_sharedW(model,opt):
 
-    checkpoint = torch.load(opt.saved_model)
+    checkpoint = torch.load(opt.spath)
     for x,y in model.named_parameters():
         if x in checkpoint.keys() and 'FeatureExtraction' in x:
             y.data.copy_(checkpoint[x].data)

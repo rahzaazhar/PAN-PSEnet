@@ -128,7 +128,7 @@ class SharedLSTMModel(nn.Module):
 
         """ Sequence modeling"""
         if opt.SequenceModeling == 'BiLSTM':
-            self.sharedRNN = nn.Sequential(
+            self.rnn_lang = nn.Sequential(
                 BidirectionalLSTM(self.FeatureExtraction_output, opt.hidden_size, opt.hidden_size),
                 BidirectionalLSTM(opt.hidden_size, opt.hidden_size, opt.hidden_size))
             self.SequenceModeling_output = opt.hidden_size
@@ -158,7 +158,7 @@ class SharedLSTMModel(nn.Module):
 
         """ Sequence modeling stage """
         if self.stages['Seq'] == 'BiLSTM':
-            contextual_feature = self.sharedRNN(visual_feature)
+            contextual_feature = self.rnn_lang(visual_feature)
         else:
             contextual_feature = visual_feature  # for convenience. this is NOT contextually modeled by BiLSTM
 
