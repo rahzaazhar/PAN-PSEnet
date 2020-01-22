@@ -16,7 +16,7 @@ import numpy as np
 
 from utils import CTCLabelConverter, AttnLabelConverter, Averager, tensorlog, Scheduler
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
-from modelv1 import Model, SharedLSTMModel
+from modelv1 import Model, SharedLSTMModel, SLSLstm
 from test import validation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -244,11 +244,13 @@ def setup(opt):
     for lang,charlist in opt.character.items():
         chardict[lang] = len(charlist)
     
-    #@azhar
+    #@azhar 
     if opt.share=='CNN':
         model = Model(opt,chardict)
     if opt.share=='CNN+LSTM':
-        model = SharedLSTMModel(opt,chardict)    	
+        model = SharedLSTMModel(opt,chardict)
+    if opt.share=='CNN+SLSTM':
+    	model = SLSLstm(opt,chardict)  	
 
     print('model input parameters', opt.imgH, opt.imgW, opt.num_fiducial, opt.input_channel, opt.output_channel,
           opt.hidden_size, opt.batch_max_length, opt.Transformation, opt.FeatureExtraction,
@@ -258,10 +260,12 @@ def setup(opt):
     # data parallel for multi-GPU
     model = torch.nn.DataParallel(model).to(device)
     model = weight_innit(model)
-
-    model = load_sharedW(model,opt)
+    
+    #@azhar loading shared weights from one architecture to another
+    model = LoadW(opt,model,'hin')
 
     model.train()
+    #loading Full model
     if opt.saved_model != '':
         print(f'loading pretrained model from {opt.saved_model}')
         if opt.FT:
@@ -307,32 +311,35 @@ def setup(opt):
 
     return model, criterion, optimizer
 
-#@azhar
-def load_sharedW(model,opt):
-
+#@azhar load weights from Shared CNN model to (sharedCNN,sharedCNN+LSTM,sharedCNN+SLSTM)
+def LoadW(opt,model,lang):
     checkpoint = torch.load(opt.spath)
-    for x,y in model.named_parameters():
-        if x in checkpoint.keys() and 'FeatureExtraction' in x:
-            y.data.copy_(checkpoint[x].data)
-
-        if x in checkpoint.keys() and 'hin' in x:
-            y.data.copy_(checkpoint[x].data)
-
-        if ('rnn_lang' in x):
-            s = x.split('.')
-            s.insert(2,'hin')
-            s = '.'.join(s)
-            y.data.copy_(checkpoint[s].data)
-    
-    '''modules = list(model.named_children())
-    modules = list(modules[0][1].named_children())
-    for x,y in modules:
-        if x=='FeatureExtraction':
-            print('loading CNN module:',x)
-            y.load_state_dict(torch.load('CNN_hin_saved.pth'))#y.load_state_dict(torch.load(opt.spath))'''
-
-    '''for name, para in model.named_parameters():
-        print(name,para)'''
+    if opt.share == 'CNN':
+        for x, y in model.named_parameters():
+            if x in checkpoint.keys() and 'FeatureExtraction' in x:
+                y.data.copy_(checkpoint[x].data)
+    if opt.share =='CNN+LSTM':
+        for x, y in model.named_parameters():
+            if x in checkpoint.keys() and ('FeatureExtraction' in x or 'Predictions.'+lang in x):
+                y.data.copy_(checkpoint[x].data)
+            if ('rnn_lang' in x):
+                s = x.split('.')
+                s.insert(2,'hin')
+                s = '.'.join(s)
+                y.data.copy_(checkpoint[s].data)
+    if opt.share =='CNN+SLSTM':
+        for x, y in model.named_parameters():
+            if x in checkpoint.keys() and ('FeatureExtraction' in x or 'Predictions.'+lang in x):
+                y.data.copy_(checkpoint[x].data)
+            if ('rnn_lang.'+lang+'.0' in x):
+                s = x.replace('0','1',1)
+                y.data.copy_(checkpoint[s].data)
+            if ('Srnn_lang' in x):
+                s = x.replace('Srnn_lang','rnn_lang')
+                s = s.split('.')
+                s.insert(2,lang)
+                s = '.'.join(s)
+                y.data.copy_(checkpoint[s].data)
 
     return model
 
