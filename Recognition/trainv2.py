@@ -90,12 +90,17 @@ def train(opt):
     globaliter = 1
     loss_avg = Averager()
     tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs')
+    combined_best_acc = 0
+    combined_best_ED = 0
 
     while(True):
         i = 1
         # can replace this with for loop to provide customisable training schedules 
         current_lang = langQ.popleft()
         langQ.append(current_lang)
+        for lang in langQ:
+            if lang != current_lang:
+                freeze_head(model,lang)
 
         while(i<LangDataDict[current_lang].numiters):
        
@@ -150,26 +155,26 @@ def train(opt):
 
                 model.train()
                 #replace saving by taking the best average value
-                save_accuracy_model_flag = True
-                save_ED_model_flag = True
+                word_acc = 0
+                ED = 0
                 for lang in langQ:
-                    if not metrics[lang][3] > LangDataDict[lang].best_accuracy:
-                       save_accuracy_model_flag = False
-                    if not metrics[lang][4] > LangDataDict[lang].best_norm_ED:
-                       save_ED_model_flag = False
-
-                if save_accuracy_model_flag:
-                    for lang in langQ:
-                        LangDataDict[lang].best_accuracy = metrics[lang][3]
+                    word_acc += metrics[lang][3]
+                    ED += metrics[lang][4]
+                ED = ED/2
+                word_acc = word_acc/2
+                #print(ED,word_acc)
+                if word_acc>combined_best_acc:
+                    combined_best_acc = word_acc
                     torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_accuracy.pth')
+                if ED>combined_best_ED:
+                    combined_best_ED = ED
+                    torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_NED.pth')
 
-                if save_ED_model_flag:
-                    for lang in langQ:
-                        LangDataDict[lang].best_norm_ED = metrics[lang][4]
-                    torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_norm_ED.pth')
+
+                
                     
                 #with open(f'./saved_models/{opt.experiment_name}/log_train.txt', 'a') as log:
-                best_model_log = f'best_accuracy: {LangDataDict[current_lang].best_accuracy:0.3f}, best_norm_ED: {LangDataDict[current_lang].best_norm_ED:0.2f}'
+                best_model_log = f'best_accuracy: {combined_best_acc:0.3f}, best_norm_ED: {combined_best_ED:0.2f}'
                 print(best_model_log)
                 log = open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a')
                 log.write(best_model_log + '\n')
@@ -377,7 +382,7 @@ def freeze_head(model,head):
     for name,param in model.named_parameters():
         if head in name:
         	param.requires_grad = False
-    return model
+    return 
 
 #@azhar testing function    
 def paramCheck(model):
@@ -496,7 +501,26 @@ if __name__ == '__main__':
 
 
          
-'''class prettyprint:
+'''
+
+save_accuracy_model_flag = True
+                save_ED_model_flag = True
+                for lang in langQ:
+                    if not metrics[lang][3] > LangDataDict[lang].best_accuracy:
+                       save_accuracy_model_flag = False
+                    if not metrics[lang][4] > LangDataDict[lang].best_norm_ED:
+                       save_ED_model_flag = False
+
+                if save_accuracy_model_flag:
+                    for lang in langQ:
+                        LangDataDict[lang].best_accuracy = metrics[lang][3]
+                    torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_accuracy.pth')
+
+                if save_ED_model_flag:
+                    for lang in langQ:
+                        LangDataDict[lang].best_norm_ED = metrics[lang][4]
+                    torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_norm_ED.pth')
+class prettyprint:
 	def __init__(self,opt):
 		self.default_exp_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}-Seed{opt.manualSeed}'
 		self.exp_name = f'./{opt.exp_dir}/{opt.experiment_name}'
