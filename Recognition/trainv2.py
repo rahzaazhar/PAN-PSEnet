@@ -175,7 +175,7 @@ def train(opt):
                 log.write(best_model_log + '\n')
 
                 for lang in opt.langs:
-                	tflogger.record(model,lang,loss_avg.val(),metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4],metrics[lang][6],globaliter)
+                	tflogger.record(model,lang,metrics[lang][7],metrics[lang][2],metrics[lang][0],metrics[lang][5],metrics[lang][3],metrics[lang][1],metrics[lang][4],metrics[lang][6],globaliter)
                 
                 loss_avg.reset()
                 #tflogger for all languages has to be implemented takes in metrics dataclass of language as input
@@ -212,9 +212,9 @@ def languagelog(opt,model,LangData,globaliter,criterion):#@azhar modified
         log.write('validating on Real data\n')
         Real_valid_loss,Real_valid_accuracy,Real_valid_norm_ED = validate(opt,model,criterion, LangData.Rvalid_loader, LangData.labelconverter,log,globaliter,'Real-val-loss',LangData.lang)
         log.write('Evaluating on Train data\n')
-        _,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang)
+        train_loss,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang)
 
-    return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy, SynvalED]
+    return [Synvalidloss,Syn_valid_acc, Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED, train_accuracy, SynvalED, train_loss]
 
 def validate(opt,model,criterion,loader,converter,log,i,lossname,lang):#@azhar
     #print('enter validate')
