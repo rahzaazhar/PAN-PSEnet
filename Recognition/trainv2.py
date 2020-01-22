@@ -267,7 +267,9 @@ def setup(opt):
     model = weight_innit(model)
     
     #@azhar loading shared weights from one architecture to another
-    model = LoadW(opt,model,'hin')
+    if opt.spath != '':
+        print(f'loading shared weiths from {opt.spath}')
+        model = LoadW(opt,model,'hin')
 
     model.train()
     #loading Full model
