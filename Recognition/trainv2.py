@@ -401,7 +401,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_name', help='Where to store logs and models')
     parser.add_argument('--train_data', help='list of sub-directories for  training dataset', required=True)
     parser.add_argument('--valid_data', help='list of sub-directories for  training dataset', required=True)
-    parser.add_argument('--spath',help='path to shared weights')#@azhar
+    parser.add_argument('--spath',default='', help='path to shared weights')#@azhar
     #parser.add_argument('--train_data', required=True, help='list of sub-directories for  training dataset')
     #parser.add_argument('--valid_data', required=True, help='list of sub-directories for  validation dataset')
     #parser.add_argument('--Synvalid_data', required=True, help='path to validation dataset')
