@@ -277,7 +277,7 @@ def setup(opt):
     #loading shared model
     if opt.shared_model != '':
         print(f'loading shared part of the model')
-        model = loadSharedModel(opt,model,True)
+        model = loadSharedModel(opt,model)
     
     #loading Full model
     if opt.saved_model != '':
