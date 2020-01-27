@@ -271,7 +271,14 @@ def setup(opt):
         print(f'loading shared weiths from {opt.spath}')
         model = LoadW(opt,model,'hin')
 
+    
     model.train()
+    
+    #loading shared model
+    if opt.shared_model != '':
+        print(f'loading shared part of the model')
+        model = loadSharedModel(opt,model,True)
+    
     #loading Full model
     if opt.saved_model != '':
         print(f'loading pretrained model from {opt.saved_model}')
@@ -285,7 +292,7 @@ def setup(opt):
 
     for lang,mode in zip(opt.langs,opt.mode):
     	if(mode!='train'):
-    		model = freeze_head(model,lang)
+    		freeze_head(model,lang)
 
 
     
@@ -319,6 +326,15 @@ def setup(opt):
     return model, criterion, optimizer
 
 #@azhar load weights from Shared CNN model to (sharedCNN,sharedCNN+LSTM,sharedCNN+SLSTM)
+def loadSharedModel(opt,model,freeze=False):
+    checkpoint = torch.load(opt.shared_model)
+    for x, y in model.named_parameters():
+        if x in checkpoint.keys():
+            y.data.copy_(checkpoint[x].data)
+            if freeze:
+                y.requires_grad = False
+    return model
+
 def LoadW(opt,model,lang):
     checkpoint = torch.load(opt.spath)
     if opt.share == 'CNN':
@@ -331,7 +347,7 @@ def LoadW(opt,model,lang):
                 y.data.copy_(checkpoint[x].data)
             if ('rnn_lang' in x):
                 s = x.split('.')
-                s.insert(2,'hin')
+                s.insert(2,lang)
                 s = '.'.join(s)
                 y.data.copy_(checkpoint[s].data)
     if opt.share =='CNN+SLSTM':
@@ -384,7 +400,7 @@ def freeze_head(model,head):
     for name,param in model.named_parameters():
         if head in name:
         	param.requires_grad = False
-    return 
+    
 
 #@azhar testing function    
 def paramCheck(model):
@@ -402,6 +418,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_data', help='list of sub-directories for  training dataset', required=True)
     parser.add_argument('--valid_data', help='list of sub-directories for  training dataset', required=True)
     parser.add_argument('--spath',default='', help='path to shared weights')#@azhar
+    parser.add_argument('--shared_model',default='',help='path to shared model')
     #parser.add_argument('--train_data', required=True, help='list of sub-directories for  training dataset')
     #parser.add_argument('--valid_data', required=True, help='list of sub-directories for  validation dataset')
     #parser.add_argument('--Synvalid_data', required=True, help='path to validation dataset')
