@@ -18,6 +18,7 @@ from utils import CTCLabelConverter, AttnLabelConverter, Averager, tensorlog, Sc
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 from modelv1 import Model, SharedLSTMModel, SLSLstm
 from test import validation
+import Config as M
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -413,7 +414,8 @@ def paramCheck(model):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_dir', help='Directory for all experiments')#@azhar
+    parser.add_argument('--config_name',help='name of Config to be used')
+    '''parser.add_argument('--exp_dir', help='Directory for all experiments')#@azhar
     parser.add_argument('--experiment_name', help='Where to store logs and models')
     parser.add_argument('--train_data', help='list of sub-directories for  training dataset', required=True)
     parser.add_argument('--valid_data', help='list of sub-directories for  training dataset', required=True)
@@ -463,9 +465,12 @@ if __name__ == '__main__':
     parser.add_argument('--input_channel', type=int, default=1, help='the number of input channel of Feature extractor')
     parser.add_argument('--output_channel', type=int, default=512,
                         help='the number of output channel of Feature extractor')
-    parser.add_argument('--hidden_size', type=int, default=256, help='the size of the LSTM hidden state')
+    parser.add_argument('--hidden_size', type=int, default=256, help='the size of the LSTM hidden state')'''
 
-    opt = parser.parse_args()
+    arg = parser.parse_args()
+
+    opt = getattr(M, arg.config_name)
+    #print(C)
 
     if not opt.experiment_name:
         opt.experiment_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}'
@@ -515,6 +520,7 @@ if __name__ == '__main__':
         """
 
     train(opt)
+    #printOptions(opt)
 
 
 
