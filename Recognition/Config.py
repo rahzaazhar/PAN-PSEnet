@@ -22,6 +22,7 @@ class HP:
 class Config:
 
     #re: Resources
+    
     experiment_name: str
     exp_dir: str
     train_data: str
@@ -30,8 +31,9 @@ class Config:
     pli: List[int]
     mode: List[str]
     #hp: HP
-    spath: str = ''
+    character: str = None
     shared_model: str = ''
+    spath: str = 'saved_models/SharedLSTM_AlternateHinBan_scratch_best_accuracy.pth'
     Transformation: str = 'None'
     FeatureExtraction: str = 'VGG'
     SequenceModeling: str = 'BiLSTM'
@@ -39,6 +41,7 @@ class Config:
     share: str = 'CNN+LSTM'
     manualSeed: int = 1111
     workers: int = 4
+    batch_size: int = 192
     num_iter: int = 300000
     valInterval: int = 1000
     saved_model: str = ''
@@ -64,10 +67,15 @@ class Config:
     output_channel: int = 512
     hidden_size: int = 256
 
+    #def __postinnit__:
+
+
 #re1 = Resources(exp_dir='Experiments', train_data='training/', valid_data='validation/', spath='lol.pth', shared_model='ha.pth')
 #h1 = HP()
-C1 = Config(experiment_name='TestDataclass',  exp_dir='Experiments', train_data='training/', valid_data='validation/', langs=['ban','hin'], pli=[1000,1000], mode=['train','train'])
-C2 = replace(C1,experiment_name='TestDataclass1',langs=['hin','ban','arab'],pli=[1000,1000,1000],mode=['train','train','train'])
+C1 = Config(experiment_name = 'TestDataclass', exp_dir = 'Experiments', train_data = 'training/', valid_data = 'validation/', langs = ['ban','hin'], pli = [1000,1000], mode = ['train','train'])
+C2 = replace(C1, experiment_name = 'TestDataclass1', langs = ['hin','ban','arab'], pli = [1000,1000,1000], mode = ['train','train','train'])
+C3_test = replace(C2, experiment_name = 'ABH(CNN)', pli = [2,2,2], share = 'CNN', total_data_usage_ratio = '0.05')
+C3_tst_val = replace(C3_test, mode = ['val','val','val'])
 print(C2)
 
 

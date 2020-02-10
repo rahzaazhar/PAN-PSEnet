@@ -1,6 +1,7 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from collections import deque
+from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -17,8 +18,7 @@ class CTCLabelConverter(object):
             self.dict[char] = i + 1
 
         self.character = ['[blank]'] + dict_character  # dummy '[blank]' token for CTCLoss (index 0)
-        print(self.dict)
-
+        
     def encode(self, text, batch_max_length=25):
         """convert text-label into text-index.
         input:
@@ -122,33 +122,38 @@ class Averager(object):
             res = self.sum / float(self.n_count)
         return res
 
+#@azhar
 class tensorlog():
 
-    def __init__(self,dirr):
+    def __init__(self, dirr):
         self.writer = SummaryWriter(log_dir=dirr)
 
-    def record(self,model,lang,trainloss,realvalloss,synvalloss,trainacc,realvalaccuracy,synvalaccuracy,real_editdist,Syn_val_ED, step):
+    def record(self, lang, metric, step):
 
-        self.writer.add_scalar(lang+'/train_loss',trainloss,step)
+        for name, value in metric.items():
+            self.writer.add_scalar(lang + '/' + name, value, step)
+
+
+        '''self.writer.add_scalar(lang+'/train_loss',trainloss,step)
         self.writer.add_scalar(lang+'/Real_validation_loss',realvalloss,step)
         self.writer.add_scalar(lang+'/Syn_validation_loss', synvalloss,step)
         self.writer.add_scalar(lang+'/train_Wordaccuracy',trainacc,step)
         self.writer.add_scalar(lang+'/Real_val_Wordaccuracy',realvalaccuracy,step)
         self.writer.add_scalar(lang+'/Syn_val_Wordaccuracy',synvalaccuracy,step)
         self.writer.add_scalar(lang+'/Real_val_edit-dist',real_editdist,step)
-        self.writer.add_scalar(lang+'/Syn_val_edit-dist',Syn_val_ED,step)
+        self.writer.add_scalar(lang+'/Syn_val_edit-dist',Syn_val_ED,step)'''
 
-        for tag,value in model.named_parameters():
+        '''for tag,value in model.named_parameters():
             tag = tag.replace('.', '/')
             #print(tag) to diagnose gradients
             self.writer.add_histogram('activation/'+tag,value.data.cpu().numpy(),step)
             if value.requires_grad==True:
                 #print(tag,value.grad.data.cpu().numpy()) to diagnose gradients
-                self.writer.add_histogram('gradients/'+tag,value.grad.data.cpu().numpy(),step)
+                self.writer.add_histogram('gradients/'+tag,value.grad.data.cpu().numpy(),step)'''
 
 
         
-
+#@azhar
 class Scheduler():
 
     def __init__(self,sch_ele):
@@ -160,6 +165,48 @@ class Scheduler():
         ele = self.queue.popleft()
         self.queue.append(ele)
         return ele
+
+#@azhar
+class LanguageData(object):
+    def __init__(self, opt, lang, numiters, mode, useSyn=True):
+        self.AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
+        self.lang = lang
+        self.numiters = int(numiters)
+        self.useSyn = useSyn
+        self.num_classes = len(opt.character[lang])
+        self.mode = mode
+#       Setup Dataset and Loaders  
+        select = ['Real']
+        if useSyn:
+            select = ['Syn','Real']
+
+        val_string = opt.valid_data+'/val_'+lang
+        train_string = opt.train_data+'/train_'+lang
+
+        if mode == 'train' or mode == 'trainVal':
+            self.train_dataset = Batch_Balanced_Dataset(opt, train_string, lang, batch_ratio=[0.5,0.5], select_data=select)
+            
+        if mode == 'val' or mode=='trainVal':
+            if useSyn:
+                Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
+                self.Synvalid_loader = self.genLoader(opt, Synvalid_dataset)
+                
+            train_dataset_eval = hierarchical_dataset(lang, root=train_string, opt=opt, select_data=select)
+            self.Tvalid_loader = self.genLoader(opt, train_dataset_eval)
+            Rvalid_dataset = hierarchical_dataset(lang, root=val_string+'/Real', opt=opt)
+            self.Rvalid_loader = self.genLoader(opt, Rvalid_dataset)
+
+        if 'CTC' in opt.Prediction:
+            self.labelconverter = CTCLabelConverter(opt.character[lang])
+        else:
+            self.labelconverter = AttnLabelConverter(opt.character[lang])
+
+    def genLoader(self,opt,dataset):
+        return torch.utils.data.DataLoader(
+                dataset, batch_size=opt.batch_size,
+                shuffle=True,  # 'True' to check training progress with validation function.
+                num_workers=int(opt.workers),
+                collate_fn=self.AlignCollate_valid, pin_memory=True)
 
         
 
