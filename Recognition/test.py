@@ -11,7 +11,7 @@ from nltk.metrics.distance import edit_distance
 
 from utils import CTCLabelConverter, AttnLabelConverter, Averager
 from datasetv1 import hierarchical_dataset, AlignCollate
-from modelv1 import Model
+#from modelv1 import Model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -73,6 +73,7 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang):
     length_of_data = 0
     infer_time = 0
     valid_loss_avg = Averager()
+    cnt = 0
     #print('enter validate in test')
 
     for i, (image_tensors, labels) in enumerate(evaluation_loader):
@@ -134,6 +135,9 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang):
                 #print(edit_distance(pred, gt) / max(len(gt),len(pred)))
                 norm_ED += 1-(edit_distance(pred, gt) / max(len(gt),len(pred)))
                 #print(norm_ED)
+        if cnt>5:
+            break
+        cnt=cnt+1
 
     norm_ED = norm_ED/float(length_of_data)
     #norm_ED = 1-norm_ED
