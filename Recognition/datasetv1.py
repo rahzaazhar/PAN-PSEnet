@@ -77,7 +77,7 @@ class Batch_Balanced_Dataset(object):
                 image, text = data_loader_iter.next()
                 balanced_batch_images.append(image)
                 balanced_batch_texts += text
-                print(selected_d,':',image.size())
+                #print(selected_d,':',image.size())
             except StopIteration:
                 self.dataloader_iter_list[selected_d] = iter(self.data_loader_list[selected_d])
                 image, text = self.dataloader_iter_list[selected_d].next()
@@ -88,7 +88,7 @@ class Batch_Balanced_Dataset(object):
                 pass
 
         balanced_batch_images = torch.cat(balanced_batch_images, 0)
-        print('total:',balanced_batch_images.size())
+        #print('total:',balanced_batch_images.size())
 
         return balanced_batch_images, balanced_batch_texts
 
