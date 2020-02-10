@@ -106,6 +106,7 @@ def setup(opt):
     print(optimizer)
 
     model = load(opt, model)
+    freezeCNN(model)
 
     for lang,mode in zip(opt.langs,opt.mode):
         if(mode!='train'):
@@ -113,7 +114,10 @@ def setup(opt):
 
     return model, criterion, optimizer
 
-
+def freezeCNN(model):
+    for name, param in model.named_parameters():
+        if 'FeatureExtraction' in name:
+            param.requires_grad = False
 ''' Model Loading Strategies'''
 def load(opt, model):
 
