@@ -185,13 +185,13 @@ def train(opt):
                     model.train()
 
                 # save model per 1e+3 iter.
-                if (globaliter) % 1e+3 == 0:
-                    torch.save(
-                        model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/iter_{globaliter}.pth')
+            if (globaliter) % 1e+3 == 0:
+                torch.save(
+                    model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/iter_{globaliter}.pth')
 
-                if globaliter == opt.num_iter:
-                    print('end the training')
-                    sys.exit()
+            if globaliter == opt.num_iter:
+                print('end the training')
+                sys.exit()
             i += 1
             globaliter += 1 
 
