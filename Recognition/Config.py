@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 from typing import List
 
 '''@dataclass
@@ -16,6 +16,22 @@ class HP:
     rho: float = 0.95
     eps: float = 1e-8
     grad_clip: int = 5'''
+@dataclass
+class Task:
+    task_id: int 
+    lang: str
+    mode: str
+    pli: int #per language iteration
+
+
+@dataclass
+class PruneConfig:
+    
+    final_rate: float = 0.1
+    pruning_iter: int = 10
+    init_masks: str = None
+    need_cut: str = 'rnn_lang,FeatureExtraction'
+
 
 
 @dataclass
@@ -30,10 +46,15 @@ class Config:
     langs: List[str]
     pli: List[int]
     mode: List[str]
+    task_id: List[int]
+    save_path: str = field(init=False)
+    select_data: List[int] = field(default_factory=list, init=False)
+    batch_ratio: List[int] = field(default_factory=list, init=False)
+
     #hp: HP
     character: str = None
     shared_model: str = ''
-    spath: str = 'saved_models/SharedLSTM_AlternateHinBan_scratch_best_accuracy.pth'
+    spath: str = ''
     Transformation: str = 'None'
     FeatureExtraction: str = 'VGG'
     SequenceModeling: str = 'BiLSTM'
@@ -47,8 +68,6 @@ class Config:
     saved_model: str = ''
     FT: bool = False
     adam: bool = False
-    select_data: str = 'Syn-Real'
-    batch_ratio: str = '0.5-0.5'
     total_data_usage_ratio: str = '1.0'
     lr: float = 1.0
     beta1: float = 0.9
@@ -67,15 +86,22 @@ class Config:
     output_channel: int = 512
     hidden_size: int = 256
 
-    #def __postinnit__:
+    def __post_init__(self):
+        self.save_path = f'{self.exp_dir}/{self.experiment_name}'
+        self.select_data = ['Syn','Real']
+        self.batch_ratio = [0.5,0.5]
+
 
 
 #re1 = Resources(exp_dir='Experiments', train_data='training/', valid_data='validation/', spath='lol.pth', shared_model='ha.pth')
 #h1 = HP()
-C1 = Config(experiment_name = 'TestDataclass', exp_dir = 'Experiments', train_data = 'training/', valid_data = 'validation/', langs = ['ban','hin'], pli = [1000,1000], mode = ['train','train'])
-C2 = replace(C1, experiment_name = 'TestDataclass1', langs = ['hin','ban','arab'], pli = [1000,1000,1000], mode = ['train','train','train'])
-C3_test = replace(C2, experiment_name = 'ABH(CNN)', pli = [2,2,2], share = 'CNN', total_data_usage_ratio = '0.05')
-C3_tst_val = replace(C3_test, mode = ['val','val','val'])
-print(C2)
+
+#C1 = Config(experiment_name = 'TestDataclass', exp_dir = 'Experiments', train_data = 'training/', valid_data = 'validation/', langs = ['ban','hin'], pli = [1000,1000], mode = ['train','train'])
+#C2 = replace(C1, experiment_name = 'TestDataclass1', langs = ['hin','ban','arab'], pli = [1000,1000,1000], mode = ['train','train','train'])
+#C3_test = replace(C2, experiment_name = 'ABH(CNN)', pli = [2,2,2], share = 'CNN', total_data_usage_ratio = '0.05')
+#C3_tst_val = replace(C3_test, mode = ['val','val','val'])
+#print(C2)
 
 
+C_subnet_ban = Config(experiment_name = 'Gen_Ban_Subnet', exp_dir='Experiments', train_data = 'training', valid_data = 'validation', langs = ['ban'], pli = [1000], mode=['train'], num_iter = 100, task_id = [1])
+P_subnet_ban = PruneConfig()

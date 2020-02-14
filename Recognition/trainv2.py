@@ -59,18 +59,6 @@ def validate(opt, model, criterion, loader, converter, log, i, lossname, lang):#
     return valid_loss, current_accuracy, current_norm_ED
 
 
-def printOptions(opt):
-    """ final options """
-    # print(opt)
-    with open(f'./{opt.exp_dir}/{opt.experiment_name}/opt.txt', 'a') as opt_file:
-        opt_log = '------------ Options -------------\n'
-        args = vars(opt)
-        for k, v in args.items():
-            opt_log += f'{str(k)}: {str(v)}\n'
-        opt_log += '---------------------------------------\n'
-        print(opt_log)
-        opt_file.write(opt_log)
-
 def freeze_head(model,head):
     for name,param in model.named_parameters():
         if head in name:
@@ -82,10 +70,10 @@ def paramCheck(model):
         print(name,param.requires_grad) 
 
 
-def train(opt):
+def train(opt,pruner=None,masker=None):
     """ dataset preparation """
-    opt.select_data = opt.select_data.split('-')#default will be syn and real
-    opt.batch_ratio = opt.batch_ratio.split('-')#default will be Syn-0.8 Real-0.2
+    #opt.select_data = opt.select_data.split('-')#default will be syn and real
+    #opt.batch_ratio = opt.batch_ratio.split('-')#default will be Syn-0.8 Real-0.2
     langQ = []
     for lang,mode in zip(opt.langs, opt.mode):
         if mode=='train':
@@ -94,14 +82,17 @@ def train(opt):
  
     print(opt.train_data)
     lang_data_dict = {}
-    for lang,iterr,m in zip(opt.langs,opt.pli,opt.mode):
+    for lang,iterr,m,t_id in zip(opt.langs,opt.pli,opt.mode,opt.task_id):
         print(lang,iterr)
-        lang_data_dict[lang] = LanguageData(opt,lang,iterr,m)
+        lang_data_dict[lang] = LanguageData(opt,lang,iterr,m,t_id)
 
     print('-' * 80)
 
     model, criterion, optimizer = setup(opt)
-    printOptions(opt)
+    if not masker == None:
+        del model
+        model = masker.model
+    #printOptions(opt)
 
     start_time = time.time()
     metrics = {}
@@ -124,14 +115,16 @@ def train(opt):
 
         while(i < lang_data_dict[current_lang].numiters):
        
-            if globaliter%1 == 0: 
-            	print('iter:',globaliter)
+            if globaliter%100 == 0: 
+                print('iter:',globaliter)
             image_tensors, labels = lang_data_dict[current_lang].train_dataset.get_batch()
             image = image_tensors.to(device)
             text, length = lang_data_dict[current_lang].labelconverter.encode(labels, batch_max_length=opt.batch_max_length)
             batch_size = image.size(0)
 
             if 'CTC' in opt.Prediction:
+                if not masker == None:
+                    masker.before_forward(lang_data_dict[current_lang].task_id)
                 preds = model(image, text, current_lang).log_softmax(2)
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
                 preds = preds.permute(1, 0, 2)  # to use CTCLoss format
@@ -149,18 +142,28 @@ def train(opt):
                 # cost = criterion(preds, text, preds_size, length)
 
             else:
+                if not masker == None:
+                    masker.before_forward(lang_data_dict[current_lang].task_id)
                 preds = model(image, text[:, :-1]) # align with Attention.forward
                 target = text[:, 1:]  # without [GO] Symbol
                 cost = criterion(preds.view(-1, preds.shape[-1]), target.contiguous().view(-1))
 
             model.zero_grad()
             cost.backward()
+            if not masker == None:
+                    masker.after_forward(lang_data_dict[current_lang].task_id)
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)  # gradient clipping with 5 (Default)
             optimizer.step()
+
+            if not pruner == None:
+                pruner.on_batch_end()
+
 
             loss_avg.add(cost)
 
             # validation part
+
             if opt.mode == 'val' or opt.mode == 'trainVal':
                 if globaliter % opt.valInterval == 0:
                     elapsed_time = time.time() - start_time
@@ -183,15 +186,16 @@ def train(opt):
                     loss_avg.reset()
 
                     model.train()
-
-                # save model per 1e+3 iter.
+            # save model per 1e+3 iter.
             if (globaliter) % 1e+3 == 0:
                 torch.save(
-                    model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/iter_{globaliter}.pth')
+                model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/saved_models/iter_{globaliter}.pth')
 
             if globaliter == opt.num_iter:
-                print('end the training')
-                sys.exit()
+                '''print('end the training')
+                sys.exit()'''
+                return
+                
             i += 1
             globaliter += 1 
 
@@ -209,7 +213,7 @@ if __name__ == '__main__':
         # print(opt.experiment_name)
 
     os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}', exist_ok=True)
-
+    os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}/saved_models', exist_ok=True)
     """ vocab / character number configuration """
     char_dict = {}
     f = open('characters.txt','r')

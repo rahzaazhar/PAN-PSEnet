@@ -2,6 +2,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from collections import deque
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
+from fastNLP import logger
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -125,8 +126,8 @@ class Averager(object):
 #@azhar
 class tensorlog():
 
-    def __init__(self, dirr):
-        self.writer = SummaryWriter(log_dir=dirr)
+    def __init__(self,opt):
+        self.writer = SummaryWriter(log_dir=f'{opt.exp_dir}/{opt.experiment_name}/',filename_suffix= opt.experiment_name)
 
     def record(self, lang, metric, step):
 
@@ -168,14 +169,15 @@ class Scheduler():
 
 #@azhar
 class LanguageData(object):
-    def __init__(self, opt, lang, numiters, mode, useSyn=True):
+    def __init__(self, opt, lang, numiters, mode, task_id, useSyn=True):
         self.AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
         self.lang = lang
+        self.task_id = task_id
         self.numiters = int(numiters)
         self.useSyn = useSyn
         self.num_classes = len(opt.character[lang])
         self.mode = mode
-#       Setup Dataset and Loaders  
+        #Setup Dataset and Loaders  
         select = ['Real']
         if useSyn:
             select = ['Syn','Real']
@@ -208,7 +210,16 @@ class LanguageData(object):
                 num_workers=int(opt.workers),
                 collate_fn=self.AlignCollate_valid, pin_memory=True)
 
-        
+def get_logger(name):
+    #return logging.getLogger(name)
+    return logger
 
+#@azhar
+def get_vocab():
+    vocab_dict = {}
+    f = open('characters.txt','r')#replace with gen path option
+    lines = f.readlines()
+    for line in lines:#@azhar
+        vocab_dict[line.split(',')[0]] = line.strip().split(',')[-1]
 
-
+    return vocab_dict

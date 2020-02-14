@@ -35,7 +35,8 @@ def setup_model(opt):
         model = SLSLstm(opt,chardict)   
 
     # data parallel for multi-GPU
-    model = torch.nn.DataParallel(model).to(device)
+    #model = torch.nn.DataParallel(model).to(device)
+    model = model.to(device)
     model = weight_innit(model)
     model.train()
     
@@ -99,18 +100,18 @@ def setup(opt):
     optimizer = setup_optimizer(opt, model)
     criterion = setup_loss(opt)
 
-    print("Model:")
-    print(model)
+    #print("Model:")
+    #print(model)
 
-    print("Optimizer:")
-    print(optimizer)
+    #print("Optimizer:")
+    #print(optimizer)
 
     model = load(opt, model)
-    freezeCNN(model)
+    #freezeCNN(model)
 
-    for lang,mode in zip(opt.langs,opt.mode):
+    '''for lang,mode in zip(opt.langs,opt.mode):
         if(mode!='train'):
-            freeze_head(model,lang)
+            freeze_head(model,lang)'''
 
     return model, criterion, optimizer
 
@@ -232,3 +233,16 @@ def log_best_metrics(opt, best_acc, best_ED):
     print(best_model_log)
     log = open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a')
     log.write(best_model_log + '\n')
+
+
+def printOptions(opt):
+    """ final options """
+    # print(opt)
+    with open(f'./{opt.exp_dir}/{opt.experiment_name}/opt.txt', 'a') as opt_file:
+        opt_log = '------------ Options -------------\n'
+        args = vars(opt)
+        for k, v in args.items():
+            opt_log += f'{str(k)}: {str(v)}\n'
+        opt_log += '---------------------------------------\n'
+        print(opt_log)
+        opt_file.write(opt_log)
