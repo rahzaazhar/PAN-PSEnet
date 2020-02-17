@@ -24,28 +24,28 @@ import Config as M
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def languagelog(opt, model, LangData, globaliter, criterion):#@azhar modified 
+def languagelog(opt, model, LangData, globaliter, criterion, masker=None):#@azhar modified 
     metrics = {}
     with open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a') as log:
         log.write('#'*18+'Start Validating on '+LangData.lang+'#'*18+'\n')
         log.write('validating on Synthetic data\n')
-        Synvalidloss, Syn_valid_acc, SynvalED = validate(opt,model,criterion, LangData.Synvalid_loader, LangData.labelconverter,log,globaliter,'Syn-val-loss',LangData.lang)
+        Synvalidloss, Syn_valid_acc, SynvalED = validate(opt,model,criterion, LangData.Synvalid_loader, LangData.labelconverter,log,globaliter,'Syn-val-loss',LangData.lang,masker)
         metrics['Syn_validation_loss'], metrics['Syn_val_Wordaccuracy'], metrics['Syn_val_edit-dist'] = Synvalidloss, Syn_valid_acc, SynvalED
         log.write('validating on Real data\n')
-        Real_valid_loss,Real_valid_accuracy,Real_valid_norm_ED = validate(opt,model,criterion, LangData.Rvalid_loader, LangData.labelconverter,log,globaliter,'Real-val-loss',LangData.lang)
+        Real_valid_loss,Real_valid_accuracy,Real_valid_norm_ED = validate(opt,model,criterion, LangData.Rvalid_loader, LangData.labelconverter,log,globaliter,'Real-val-loss',LangData.lang,masker)
         metrics['Real_validation_loss'], metrics['Real_val_Wordaccuracy'], metrics['Real_val_edit-dist'] = Real_valid_loss, Real_valid_accuracy, Real_valid_norm_ED
         log.write('Evaluating on Train data\n')
-        train_loss,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang)
+        train_loss,train_accuracy,_ = validate(opt,model,criterion, LangData.Tvalid_loader, LangData.labelconverter,log,globaliter,'train-loss',LangData.lang,masker)
         metrics['train_loss'], metrics['train_Wordaccuracy'] = train_loss, train_accuracy
 
     return metrics
 
 
-def validate(opt, model, criterion, loader, converter, log, i, lossname, lang):#@azhar
+def validate(opt, model, criterion, loader, converter, log, i, lossname, lang, masker=None):#@azhar
     #print('enter validate')
     with torch.no_grad():
         valid_loss, current_accuracy, current_norm_ED, preds, labels, infer_time, length_of_data = validation(
-            model, criterion, loader, converter, opt, lang)
+            model, criterion, loader, converter, opt, lang,masker)
     for pred, gt in zip(preds[:10], labels[:10]):
         if 'Attn' in opt.Prediction:
             pred = pred[:pred.find('[s]')]

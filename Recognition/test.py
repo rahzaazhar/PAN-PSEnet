@@ -65,17 +65,17 @@ def benchmark_all_eval(model, criterion, converter, opt, calculate_infer_time=Fa
 
     return None
 
-
-def validation(model, criterion, evaluation_loader, converter, opt, lang):
+#send lang_data object 
+def validation(model, criterion, evaluation_loader, converter, opt, lang, masker=None):
     """ validation or evaluation """
     n_correct = 0
     norm_ED = 0
     length_of_data = 0
     infer_time = 0
     valid_loss_avg = Averager()
-    cnt = 0
     #print('enter validate in test')
-
+    if not masker == None:
+        model = masker.model
     for i, (image_tensors, labels) in enumerate(evaluation_loader):
         batch_size = image_tensors.size(0)
         length_of_data = length_of_data + batch_size
@@ -89,6 +89,8 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang):
         #length_for_loss.to(device)
         start_time = time.time()
         if 'CTC' in opt.Prediction:
+            if not masker == None:
+                    masker.before_forward(1)
             preds = model(image, text_for_pred, lang).log_softmax(2)
             forward_time = time.time() - start_time
 
@@ -104,6 +106,8 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang):
             preds_str = converter.decode(preds_index.data, preds_size.data)
 
         else:
+            if not masker == None:
+                    masker.before_forward(1)
             preds = model(image, text_for_pred, is_train=False)
             forward_time = time.time() - start_time
 
@@ -135,9 +139,6 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang):
                 #print(edit_distance(pred, gt) / max(len(gt),len(pred)))
                 norm_ED += 1-(edit_distance(pred, gt) / max(len(gt),len(pred)))
                 #print(norm_ED)
-        if cnt>5:
-            break
-        cnt=cnt+1
 
     norm_ED = norm_ED/float(length_of_data)
     #norm_ED = 1-norm_ED
