@@ -16,7 +16,7 @@ import numpy as np
 
 from utils import CTCLabelConverter, AttnLabelConverter, Averager, tensorlog, Scheduler, LanguageData
 import train_utils
-from train_utils import setup, save_best_model, log_best_metrics 
+from train_utils import save_best_model, log_best_metrics 
 #from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 from modelv1 import sharedCNNModel, SharedLSTMModel, SLSLstm
 from test import validation
@@ -58,7 +58,6 @@ def validate(opt, model, criterion, loader, converter, log, i, lossname, lang):#
     log.write(valid_log + '\n')
     return valid_loss, current_accuracy, current_norm_ED
 
-
 def freeze_head(model,head):
     for name,param in model.named_parameters():
         if head in name:
@@ -70,7 +69,7 @@ def paramCheck(model):
         print(name,param.requires_grad) 
 
 
-def train(opt,pruner=None,masker=None):
+def train(opt,model,optimizer,criterion,pruner=None,masker=None):
     """ dataset preparation """
     #opt.select_data = opt.select_data.split('-')#default will be syn and real
     #opt.batch_ratio = opt.batch_ratio.split('-')#default will be Syn-0.8 Real-0.2
@@ -88,7 +87,7 @@ def train(opt,pruner=None,masker=None):
 
     print('-' * 80)
 
-    model, criterion, optimizer = setup(opt)
+    #model, criterion, optimizer = setup(opt)
     if not masker == None:
         del model
         model = masker.model
@@ -187,14 +186,16 @@ def train(opt,pruner=None,masker=None):
 
                     model.train()
             # save model per 1e+3 iter.
-            if (globaliter) % 1e+3 == 0:
-                torch.save(
-                model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/saved_models/iter_{globaliter}.pth')
+            if pruner == None:
+                if (globaliter) % 1e+3 == 0:
+                    torch.save(
+                    model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/saved_models/iter_{globaliter}.pth')
 
             if globaliter == opt.num_iter:
                 '''print('end the training')
                 sys.exit()'''
-                return
+
+                return 
                 
             i += 1
             globaliter += 1 

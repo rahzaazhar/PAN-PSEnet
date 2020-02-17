@@ -14,7 +14,7 @@ import torch.optim as optim
 import torch.utils.data
 import numpy as np
 from trainv2 import train
-from train_utils import setup_model, setup_optimizer, printOptions
+from train_utils import setup_model, setup_optimizer,setup_loss, printOptions
 from utils import LanguageData, get_vocab
 from sparse_sharing.src import prune
 from sparse_sharing.src.prune import Pruning
@@ -33,6 +33,8 @@ def gen_task_subnet(train_config, prune_config):
 
     #task_data = load_data(train_config)
     model = setup_model(train_config)
+    loss = setup_loss(train_config)
+    optim = setup_optimizer(train_config, model)
     print(model)
 
     need_cut_names = list(set([s.strip() for s in prune_config.need_cut.split(",")]))
@@ -61,16 +63,17 @@ def gen_task_subnet(train_config, prune_config):
         #optim_params = [p for p in model.parameters() if p.requires_grad]
         # utils.get_logger(__name__).debug(optim_params)
         #utils.get_logger(__name__).debug(len(optim_params))
-        #optimizer = setup_optimizer(train_config, model)
+        optim = setup_optimizer(train_config, model)
         # optimizer = TriOptim(optimizer, args.n_filters, args.warmup, args.decay)
-        #factor = pruner.cur_rate / 100.0
-        #factor = 1.0
+        factor = pruner.cur_rate / 100.0
+        factor = 1.0
         # print(factor, pruner.cur_rate)
-        #for pg in optimizer.param_groups:
-        #    pg["lr"] = factor * pg["lr"]
+        for pg in optim.param_groups:
+            pg["lr"] = factor * pg["lr"]
         #utils.get_logger(__name__).info(optimizer)
-
-        train(train_config, pruner)
+        train_time_start = time.time()
+        train(opt=train_config,model=model,optimizer=optim,criterion=loss,pruner=pruner)
+        train_time_end = time.time()
         torch.save(
             model.state_dict(),
             os.path.join(
@@ -78,9 +81,13 @@ def gen_task_subnet(train_config, prune_config):
                 "best_{}_{}.th".format(pruner.prune_times, pruner.cur_rate),
             ),
         )
+        prune_time_start = time.time()
         pruner.pruning_model()
+        prune_time_end = time.time()
         #summary_writer.add_scalar("remain_rate", pruner.cur_rate, prune_step + 1)
         #summary_writer.add_scalar("cutoff", pruner.last_cutoff, prune_step + 1)
+
+        print('Train Time:{} Prune time:{}'.format(train_time_end-train_time_start,prune_time_end- prune_time_start))
 
         pruner.save(
             os.path.join(
@@ -98,6 +105,8 @@ if __name__ == '__main__':
     train_config = getattr(M, arg.train_config_name)
     train_config.character = get_vocab()
     prune_config = getattr(M, arg.prune_config_name)
+
+    os.makedirs(train_config.save_path, exist_ok=True)
 
     """ Seed and GPU setting """
     # print("Random Seed: ", opt.manualSeed)
