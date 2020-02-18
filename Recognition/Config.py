@@ -102,6 +102,30 @@ class Config:
 #C3_tst_val = replace(C3_test, mode = ['val','val','val'])
 #print(C2)
 
+'''
+#training arab + frozen CNN + CNN+LSTM pretrained on hindi bangla
+C1 = Config(experiment_name = 'ABH(frozenCNN)', exp_dir = 'Experiments', train_data = '/content/drive/My Drive/data/training', valid_data = '/content/drive/My Drive/data/validation', langs = ['arab'], pli = [1000], mode = ['train'],spath='/content/drive/My Drive/SharedLSTM_AlternateHinBan_scratch_best_accuracy.pth',share='CNN')
+C1_val = replace(C1, mode = ['val'])
 
-C_subnet_ban = Config(experiment_name = 'Gen_Ban_Subnet', exp_dir='Experiments', train_data = 'training', valid_data = 'validation', langs = ['ban'], pli = [1000], mode=['train'], num_iter = 100, task_id = [1])
+#training baseline Bangla model CNN+LSTM
+C4 = Config(experiment_name = 'Bangla_Baseline_Test', exp_dir = 'Experiments', train_data = '/content/drive/My Drive/data/training', valid_data = '/content/drive/My Drive/data/validation', langs = ['arab'], pli = [1000], mode = ['train'])
+C4_val = replace(C4,mode='val')
+
+C2 = replace(C1, experiment_name = 'TestDataclass1', langs = ['hin','ban','arab'], pli = [1000,1000,1000], mode = ['train','train','train'])
+C3_test = replace(C2, experiment_name = 'ABH(CNN)', pli = [2,2,2], share = 'CNN', total_data_usage_ratio = '0.05')
+C3_tst_val = replace(C3_test, mode = ['val','val','val'])
+'''
+
+C_subnet_ban = Config(experiment_name = 'Gen_Ban_Subnet1', exp_dir='Experiments', train_data = 'training', valid_data = 'validation', langs = ['ban'], pli = [1000], mode=['train'], num_iter = 100, task_id = [1])
+C_subnet_ban_val = replace(C_subnet_ban,mode=['val'])
 P_subnet_ban = PruneConfig()
+
+C_subnet_ban = Config(experiment_name = 'Gen_Ban_Subnet', exp_dir='Experiments', train_data = '/content/drive/My Drive/data/training', valid_data = '/content/drive/My Drive/data/validation', langs = ['ban'], pli = [1000], mode=['train'], num_iter = 6000, task_id = [1])
+C_subnet_ban_val = replace(C_subnet_ban,mode=['val'])
+
+C_subnet_arab = Config(experiment_name = 'Gen_Arab_Subnet', exp_dir='Experiments', train_data = '/content/drive/My Drive/data/training', valid_data = '/content/drive/My Drive/data/validation', langs = ['arab'], pli = [1000], mode=['train'], num_iter = 6000, task_id = [0])
+C_subnet_arab_val = replace(C_subnet_arab,mode=['val'])
+
+C_subnet_hin = Config(experiment_name = 'Gen_Hin_Subnet', exp_dir='Experiments', train_data = '/content/drive/My Drive/data/training', valid_data = '/content/drive/My Drive/data/validation', langs = ['hin'], pli = [1000], mode=['train'], num_iter = 6000, task_id = [2])
+P_subnet_ban = PruneConfig()
+

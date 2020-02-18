@@ -88,9 +88,9 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
     print('-' * 80)
 
     #model, criterion, optimizer = setup(opt)
-    if not masker == None:
+    '''if not masker == None:
         del model
-        model = masker.model
+        model = masker.model'''
     #printOptions(opt)
 
     start_time = time.time()
@@ -113,9 +113,12 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
                 freeze_head(model,lang)
 
         while(i < lang_data_dict[current_lang].numiters):
-       
+        
             if globaliter%100 == 0: 
                 print('iter:',globaliter)
+                train_time = batch_time_end-batch_time_start
+                train_time_prune = batch_time_prune-batch_time_start
+                print('Batch time without prune:{} Batch time with prune:{}'.format(train_time,train_time_prune))
             image_tensors, labels = lang_data_dict[current_lang].train_dataset.get_batch()
             image = image_tensors.to(device)
             text, length = lang_data_dict[current_lang].labelconverter.encode(labels, batch_max_length=opt.batch_max_length)
@@ -124,6 +127,7 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
             if 'CTC' in opt.Prediction:
                 if not masker == None:
                     masker.before_forward(lang_data_dict[current_lang].task_id)
+                batch_time_start = time.time()
                 preds = model(image, text, current_lang).log_softmax(2)
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size)
                 preds = preds.permute(1, 0, 2)  # to use CTCLoss format
@@ -154,10 +158,10 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)  # gradient clipping with 5 (Default)
             optimizer.step()
-
+            batch_time_end = time.time()
             if not pruner == None:
                 pruner.on_batch_end()
-
+            batch_time_prune = time.time()
 
             loss_avg.add(cost)
 
