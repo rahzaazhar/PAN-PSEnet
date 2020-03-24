@@ -4,26 +4,86 @@ import time
 import random
 import string
 import argparse
-from collections import deque
+from collections import deque,OrderedDict 
 from dataclasses import dataclass, replace
 
+import copy 
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn.init as init
 import torch.optim as optim
 import torch.utils.data
 import numpy as np
+import matplotlib.pyplot as plt
+import train_utils
 
 from utils import CTCLabelConverter, AttnLabelConverter, Averager, tensorlog, Scheduler, LanguageData
-import train_utils
-from train_utils import save_best_model, log_best_metrics 
-#from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
+from train_utils import save_best_model, log_best_metrics, setup_model, setup_optimizer, setup_loss, printOptions
+from utils import LanguageData, get_vocab
 from modelv1 import sharedCNNModel, SharedLSTMModel, SLSLstm
 from test import validation
 import Config as M
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+#@azhar
+def plot_grad_sim(opt, x, sims, module, para):
+    fig, ax = plt.subplots()
+    #fig.suptitle(module+para)
+    xp = np.array(x)
+    for name,sim in sims.items():
+        if module in name and para in name:
+            sim = np.array(sim)
+            name = name.replace(module,'')
+            plt.scatter(xp, sim, label=name)
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+    ax.set_title(module+para)
+    #ax.legend(loc='upper right')
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax.set_xlabel('iters')
+    ax.set_ylabel('Cosine similarity')
+    ax.grid(True)
+    fig.savefig(opt.save_path+'/{}{}_gradSim.png'.format(module,para))
+    del fig 
+    del ax
 
+
+#@azhar
+def gradient_similarity(sims,grad_arab,grad_ban):
+    for name in sims:
+        g_arab = grad_arab[name]
+        g_ban = grad_ban[name]
+        g_arab = g_arab.view(-1)
+        g_ban = g_ban.view(-1)
+        g_arab = g_arab.cpu().detach().numpy()
+        g_ban = g_ban.cpu().detach().numpy()
+        sims[name].append(dot_product(g_arab,g_ban))
+
+
+#@azhar
+def multiplot(opt,x,sims):
+    for module in ['FeatureExtraction.','rnn_lang.']:
+        for para in ['weight','bias']:
+            plot_grad_sim(opt,x,sims,module,para)
+
+def average_grad(opt,grad):
+    for name,para in grad.items():
+        grad[name] = 2*para/opt.valInterval
+
+#@azhar
+def dot_product(a,b):
+    return np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b))
+
+def check_para_equal(pa,pb):
+    res = True
+    for name in pa.keys():
+        if not torch.equal(pa[name],pb[name]):
+            res = False
+            break
+    return res
+
+#@azhar
 def languagelog(opt, model, LangData, globaliter, criterion, masker=None):#@azhar modified 
     metrics = {}
     with open(f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_log.txt', 'a') as log:
@@ -40,7 +100,7 @@ def languagelog(opt, model, LangData, globaliter, criterion, masker=None):#@azha
 
     return metrics
 
-
+#@azhar
 def validate(opt, model, criterion, loader, converter, log, i, lossname, lang, masker=None):#@azhar
     #print('enter validate')
     with torch.no_grad():
@@ -58,11 +118,22 @@ def validate(opt, model, criterion, loader, converter, log, i, lossname, lang, m
     log.write(valid_log + '\n')
     return valid_loss, current_accuracy, current_norm_ED
 
+#@azhar
 def freeze_head(model,head):
     for name,param in model.named_parameters():
         if head in name:
             param.requires_grad = False
-    
+
+#@azhar
+def unfreeze_head(model,head):
+    for name,param in model.named_parameters():
+        if head in name:
+            param.requires_grad = True
+
+def set_zero(grad):
+    for name,para in grad.items():
+        grad[name] = torch.zeros(para.size())
+
 #@azhar testing function    
 def paramCheck(model):
     for name, param in model.named_parameters():
@@ -71,54 +142,62 @@ def paramCheck(model):
 
 def train(opt,model,optimizer,criterion,pruner=None,masker=None):
     """ dataset preparation """
-    #opt.select_data = opt.select_data.split('-')#default will be syn and real
-    #opt.batch_ratio = opt.batch_ratio.split('-')#default will be Syn-0.8 Real-0.2
     langQ = []
     for lang,mode in zip(opt.langs, opt.mode):
-        if mode=='train':
+        if mode=='train' or mode=='dev':
             langQ.append(lang)
     langQ = deque(langQ)
  
     print(opt.train_data)
     lang_data_dict = {}
-    for lang,iterr,m,t_id in zip(opt.langs,opt.pli,opt.mode,opt.task_id):
+    for lang, iterr, m, t_id in zip(opt.langs,opt.pli,opt.mode,opt.task_id):
         print(lang,iterr)
-        lang_data_dict[lang] = LanguageData(opt,lang,iterr,m,t_id)
-
+        lang_data_dict[lang] = LanguageData(opt, lang, iterr, m, t_id)
     print('-' * 80)
-
-    #model, criterion, optimizer = setup(opt)
-    '''if not masker == None:
-        del model
-        model = masker.model'''
-    #printOptions(opt)
 
     start_time = time.time()
     metrics = {}
     globaliter = 1
     loss_avg = Averager()
-    if opt.mode == 'val' or opt.mode == 'trainVal':
-        tflogger = tensorlog(dirr=f'{opt.exp_dir}/{opt.experiment_name}/runs')
-    
     best_acc = 0
     best_ED = 0
+    grad1 = OrderedDict()
+    grad2 = OrderedDict()
+    dump = OrderedDict()
+    sims = {}
+    x = []
+    grad_list = []
+    grad1_list = []
+    grad2_list = []
+    j = 1
+    
 
+    if opt.mode[0] == 'val' or opt.mode[0] == 'dev':
+        tflogger = tensorlog(opt)
+        
+    freeze_head(model,'hin')
+    for name,para in model.named_parameters():
+        if para.requires_grad == True: 
+            if 'Predictions' not in name:
+                sims[name] = []
+                grad1[name] = torch.zeros(para.size())
+                grad2[name] = torch.zeros(para.size())
+            elif 'arab' in name:
+                grad1[name] = torch.zeros(para.size())
+            elif 'ban' in name:
+                grad2[name] = torch.zeros(para.size())
+  
     while(True):
         i = 1
         current_lang = langQ.popleft()
         langQ.append(current_lang)
-        
-        for lang in langQ:
-            if lang != current_lang:
-                freeze_head(model,lang)
-
-        while(i < lang_data_dict[current_lang].numiters):
-        
+        while(i <= lang_data_dict[current_lang].numiters):
+            
             if globaliter%100 == 0: 
                 print('iter:',globaliter)
                 train_time = batch_time_end-batch_time_start
-                train_time_prune = batch_time_prune-batch_time_start
-                print('Batch time without prune:{} Batch time with prune:{}'.format(train_time,train_time_prune))
+                print('Batch time:{}'.format(train_time))
+            
             image_tensors, labels = lang_data_dict[current_lang].train_dataset.get_batch()
             image = image_tensors.to(device)
             text, length = lang_data_dict[current_lang].labelconverter.encode(labels, batch_max_length=opt.batch_max_length)
@@ -153,21 +232,49 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
 
             model.zero_grad()
             cost.backward()
+            #if globaliter % opt.valInterval or globaliter % (opt.valInterval-1):
+            if current_lang == 'arab':
+                for name,para in model.named_parameters():
+                    if name in grad1.keys():
+                        #grad_arab[name] = copy.deepcopy(para.grad.data)
+                        grad1[name] = grad1[name].to(device)+para.grad.data
+            if current_lang == 'ban':
+                for name,para in model.named_parameters():
+                    if name in grad2.keys():
+                        #grad_hin[name] = copy.deepcopy(para.gard.data)
+                        grad2[name] = grad2[name].to(device)+para.grad.data
+            '''if globaliter % opt.valInterval == 0:
+                grad = OrderedDict()
+                for name,para in model.named_parameters():
+                    if name in grad_lang[current_lang].keys():
+                        grad[name] = copy.deepcopy(para.grad.data)
+                x.append(globaliter)
+                grad_list.append(grad)'''
+                
             if not masker == None:
-                    masker.after_forward(lang_data_dict[current_lang].task_id)
-
+                masker.after_forward(lang_data_dict[current_lang].task_id)
+            
             torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)  # gradient clipping with 5 (Default)
             optimizer.step()
+            #gradient accumulation
+            '''if globaliter%2 == 0:
+                model.zero_grad()
+                for name,para in model.named_parameters():
+                    if para.requires_grad == True:
+                        #print(type(grad_arab[name]),type(grad_ban[name]))
+                        accgrad = grad_arab[name].to(device)+grad_ban[name].to(device)
+                        para.grad.data.copy_(accgrad)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)  # gradient clipping with 5 (Default)
+                optimizer.step()'''
+                
             batch_time_end = time.time()
             if not pruner == None:
                 pruner.on_batch_end()
-            batch_time_prune = time.time()
 
             loss_avg.add(cost)
 
-            # validation part
-
-            if opt.mode == 'val' or opt.mode == 'trainVal':
+            #validation
+            if opt.mode[0] == 'val' or opt.mode[0] == 'dev':
                 if globaliter % opt.valInterval == 0:
                     elapsed_time = time.time() - start_time
                     print(f'[{globaliter}/{opt.num_iter}] Loss: {loss_avg.val():0.5f} elapsed_time: {elapsed_time:0.5f} batch_ratio(Syn-Real):{opt.batch_ratio} Training on {current_lang} now')
@@ -178,31 +285,54 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
                     #validating and recording metrics on all languages
                     for lang in opt.langs:
                         print('-'*18+'Start Validating on '+lang+'-'*18)
-                        metrics[lang] = languagelog(opt, model, lang_data_dict[lang], globaliter, criterion)
-
+                        if not masker == None: 
+                            metrics[lang] = languagelog(opt, model, lang_data_dict[lang], globaliter, criterion, masker)
+                        else:
+                            metrics[lang] = languagelog(opt, model, lang_data_dict[lang], globaliter, criterion)
+                        
                     #replace saving by taking the best average value
                     best_acc, best_ED = save_best_model(opt, model, best_acc, best_ED, metrics)
                     log_best_metrics(opt, best_acc, best_ED)
 
+                    #log metrics for languages on tensorboard
                     for lang in opt.langs:
-                        tflogger.record(lang, metrics[lang], iterr)
+                        tflogger.record(lang, metrics[lang], globaliter)
+                    
+                    x.append(globaliter)
+                    average_grad(opt,grad1)
+                    average_grad(opt,grad2)
+                    grad1_list.append(copy.deepcopy(grad1))
+                    grad2_list.append(copy.deepcopy(grad2))
+                    gradient_similarity(sims,grad1,grad2)
+                    multiplot(opt,x,sims)
+                    dump = OrderedDict()
+                    dump = {'iter':x,'grad_sims':sims}
+                    save_name = opt.experiment_name.split('_')
+                    save_name = save_name[0]+save_name[-1]
+                    torch.save(dump,opt.save_path+'/{}.pth'.format(save_name))
+                    torch.save(grad1_list,opt.save_path+'/grads_arab.pth')
+                    torch.save(grad2_list,opt.save_path+'/grads_ban.pth')
+                    
+                    #torch.save(dump,opt.save_path+'/lang_grads_ban.pth')
+                    set_zero(grad1)
+                    set_zero(grad2)
                     loss_avg.reset()
-
                     model.train()
+            
             # save model per 1e+3 iter.
             if pruner == None:
-                if (globaliter) % 1e+3 == 0:
-                    torch.save(
-                    model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/saved_models/iter_{globaliter}.pth')
+                if (globaliter) % 2e+3 == 0:
+                    print('Not saving model')
+                    #torch.save(
+                    #model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/saved_models/iter_{globaliter}.pth')
 
             if globaliter == opt.num_iter:
                 '''print('end the training')
                 sys.exit()'''
-
                 return 
                 
             i += 1
-            globaliter += 1 
+            globaliter += 1
 
 
 
@@ -211,27 +341,20 @@ if __name__ == '__main__':
     parser.add_argument('--config_name',help='name of Config to be used')
     arg = parser.parse_args()
     opt = getattr(M, arg.config_name)
+    opt.character = get_vocab()
+
+    model = setup_model(opt)
+    print(model)
+    loss = setup_loss(opt)
+    optim = setup_optimizer(opt, model)
     
     if not opt.experiment_name:
         opt.experiment_name = f'{opt.Transformation}-{opt.FeatureExtraction}-{opt.SequenceModeling}-{opt.Prediction}'
         opt.experiment_name += f'-Seed{opt.manualSeed}'
-        # print(opt.experiment_name)
 
-    os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}', exist_ok=True)
-    os.makedirs(f'./{opt.exp_dir}/{opt.experiment_name}/saved_models', exist_ok=True)
-    """ vocab / character number configuration """
-    char_dict = {}
-    f = open('characters.txt','r')
-    lines = f.readlines()
-    line = lines[0]
-    #if opt.sensitive:
-    #    # opt.character += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    #    opt.character = string.printable[:-6]  # same with ASTER setting (use 94 char).
-    for line in lines:#@azhar
-        char_dict[line.split(',')[0]] = line.strip().split(',')[-1]
-
-    opt.character = char_dict#@azhar
-    print(opt.character)
+    os.makedirs(opt.save_path, exist_ok=True)
+    os.makedirs(opt.save_path+'/saved_models', exist_ok=True)
+    printOptions(opt)
 
     """ Seed and GPU setting """
     # print("Random Seed: ", opt.manualSeed)
@@ -258,12 +381,8 @@ if __name__ == '__main__':
         If you dont care about it, just commnet out these line.)
         opt.num_iter = int(opt.num_iter / opt.num_gpu)
         """
+    train(opt,model,optim,loss)
 
-    train(opt)
 
-'''""" start training """
-    if opt.saved_model != '':
-        start_iter = int(opt.saved_model.split('_')[-1].split('.')[0])
-        print(f'continue to train, start_iter: {start_iter}')  commented this out as I am not saving models'''
 
 
