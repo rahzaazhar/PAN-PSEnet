@@ -1,6 +1,10 @@
 import torch
+import os
+import copy
+import matplotlib.pyplot as plt 
 from torch.utils.tensorboard import SummaryWriter
 from collections import deque
+from torch.utils.data import Subset
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 from fastNLP import logger
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -124,8 +128,56 @@ class Averager(object):
         return res
 
 #@azhar
-class tensorlog():
+class metricsLog():
+    def __init__(self, opt, lang_datas):
+        syn = ['Syn_validation_loss','Syn_val_Wordaccuracy','Syn_val_edit-dist']
+        real = ['Real_validation_loss','Real_val_Wordaccuracy','Real_val_edit-dist']
+        self.steps = []
+        self.lang_metrics = {}
+        self.save_plots = opt.save_path+'/plots/'
+        os.makedirs(self.save_plots,exist_ok=True)
 
+        for lang in lang_datas.keys():
+            metrics = {}
+            if lang_datas[lang].useSyn:
+                for name in syn:
+                  metrics[name] = []
+            if lang_datas[lang].useReal:
+                for name in real:
+                  metrics[name] = []
+            for name in ['train_loss','train_Wordaccuracy']:
+                metrics[name] = []
+            self.lang_metrics[lang] = copy.deepcopy(metrics)
+    
+    def update_steps(self,step):
+        self.steps.append(step)
+
+    def update_metrics(self, lang, metrics):
+        for name, metric in metrics.items():
+            self.lang_metrics[lang][name].append(metric)
+        #print('Sanity check')
+        #print(self.lang_metrics)
+
+    def plot_metrics(self,lang):
+        plot_path = self.save_plots+lang+'/'
+        os.makedirs(plot_path,exist_ok=True)
+        for name,val in self.lang_metrics[lang].items():
+          plt.plot(self.steps, val)
+          plt.title(lang)
+          plt.xlabel('iterations')
+          plt.ylabel(name)
+          plt.savefig(plot_path+'{}.png'.format(name))
+          plt.close('all')
+    
+    def save_metrics(self):
+        torch.save(self.lang_metrics,self.save_plots+'metrics.pth')
+
+            
+
+
+
+#@azhar
+class tensorlog():
     def __init__(self,opt):
         self.writer = SummaryWriter(log_dir=f'{opt.exp_dir}/{opt.experiment_name}/',filename_suffix= opt.experiment_name)
 
@@ -169,26 +221,35 @@ class Scheduler():
 
 #@azhar
 class LanguageData(object):
-    def __init__(self, opt, lang, numiters, mode, task_id, useSyn=True):
+    def __init__(self, opt, lang, numiters, mode, task_id, useSyn=False,useReal=True):
         self.AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
         self.lang = lang
         self.task_id = task_id
         self.numiters = int(numiters)
         self.useSyn = useSyn
+        self.useReal = useReal
         self.num_classes = len(opt.character[lang])
         self.mode = mode
-        #Setup Dataset and Loaders  
-        select = ['Real']
-        if useSyn:
-            select = ['Syn','Real']
+        #Setup Dataset and Loaders
+        if useReal and useSyn:
+            print('enter use Real and SYN')
+            select = ['Real','Syn']
+            batch_ratio = [0.5,0.5]  
+        elif useReal:
+            print('enter use Real ')
+            select = ['Real']
+            batch_ratio = [1.0]
+        elif useSyn:
+            select = ['Syn']
+            batch_ratio = [1.0]
 
         val_string = opt.valid_data+'/val_'+lang
         train_string = opt.train_data+'/train_'+lang
 
-        if mode == 'train' or mode == 'trainVal':
-            self.train_dataset = Batch_Balanced_Dataset(opt, train_string, lang, batch_ratio=[0.5,0.5], select_data=select)
+        if not mode == 'val':
+            self.train_dataset = Batch_Balanced_Dataset(opt, train_string, lang, batch_ratio=batch_ratio, select_data=select)
             
-        if mode == 'val' or mode=='trainVal':
+        if mode == 'val':
             if useSyn:
                 Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
                 self.Synvalid_loader = self.genLoader(opt, Synvalid_dataset)
@@ -197,7 +258,35 @@ class LanguageData(object):
             self.Tvalid_loader = self.genLoader(opt, train_dataset_eval)
             Rvalid_dataset = hierarchical_dataset(lang, root=val_string+'/Real', opt=opt)
             self.Rvalid_loader = self.genLoader(opt, Rvalid_dataset)
-
+        
+        if mode == 'dev':
+            if useSyn:
+                Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
+                self.Synvalid_loader = self.genLoader(opt, Synvalid_dataset)
+            if useReal:
+                Rvalid_dataset = hierarchical_dataset(lang, root=val_string+'/Real', opt=opt)
+                self.Rvalid_loader = self.genLoader(opt, Rvalid_dataset)
+            train_dataset_eval = hierarchical_dataset(lang, root=train_string, opt=opt, select_data=select)
+            indices = list(range(int(0.2*len(train_dataset_eval))))
+            train_subset = Subset(train_dataset_eval,indices)
+            self.Tvalid_loader = self.genLoader(opt, train_subset)
+        
+        if mode == 'test':
+            if useSyn:
+                Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
+                indices = list(range(int(0.2*len(Synvalid_dataset))))
+                Synvalid_subset = Subset(Synvalid_dataset,indices)
+                self.Synvalid_loader = self.genLoader(opt, Synvalid_subset)
+            if useReal:
+                Rvalid_dataset = hierarchical_dataset(lang, root=val_string+'/Real', opt=opt)
+                indices = list(range(int(0.2*len(Rvalid_dataset))))
+                Rvalid_subset = Subset(Rvalid_dataset,indices)
+                self.Rvalid_loader = self.genLoader(opt, Rvalid_subset)
+            train_dataset_eval = hierarchical_dataset(lang, root=train_string, opt=opt, select_data=select)
+            indices = list(range(int(0.02*len(train_dataset_eval))))
+            train_subset = Subset(train_dataset_eval,indices)
+            self.Tvalid_loader = self.genLoader(opt, train_subset)
+        
         if 'CTC' in opt.Prediction:
             self.labelconverter = CTCLabelConverter(opt.character[lang])
         else:
