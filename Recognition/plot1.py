@@ -23,9 +23,9 @@ def plot_grad_sim(x, sims, module, para, ylabel,plot=True):
     ax.set_ylabel(ylabel)
     ax.grid(True)
     if plot:
-    	plt.show()
+        plt.show()
     else:
-    	fig.savefig(opt.save_path+'/{}{}_gradSim.png'.format(module,para))
+        fig.savefig(opt.save_path+'/{}{}_gradSim.png'.format(module,para))
     plt.close('all')
 
 
@@ -76,7 +76,8 @@ def norm2(a,b):
     a = a/np.linalg.norm(a)
     b = np.array(b)
     b = b/np.linalg.norm(b)
-    return np.sqrt(np.sum((a - b) ** 2))
+    #return np.sqrt(np.sum((a - b) ** 2))
+    return np.sqrt(np.sum((np.abs(a) - np.abs(b)) ** 2))
     #return (1-np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b)))*100
     #return np.linalg.norm(a-b)
 
@@ -111,15 +112,14 @@ def execute_pearson_comp(grads1, metrics1, lang1, grads2, metrics2, lang2, plot=
     similarity_score = 1-norm2(list(p_g1.values()),list(p_g2.values()))
     
     if plot:
-        print('The similarity_score between '+lang1+' and '+lang2+' is:',similarity_score)
         plot_pearsonc(p_g1,lang1,p_g2,lang2)
-    
+    print('The similarity_score between '+lang1+' and '+lang2+' is:',similarity_score)
     return similarity_score
 
 def pearson_vs_iters(grads1,metrics1,lang1,grads2,metrics2,lang2):
     length = len(metrics1)
     scores = []
-    for i in range(lenght):
+    for i in range(length):
         grads1_subset = gen_subset(grads1,i+1)
         grads2_subset = gen_subset(grads2,i+1)
         metrics1_subset = gen_subset(metrics1,i+1)
@@ -135,6 +135,25 @@ def simple_plot(x,y,xlabel,ylabel,title):
     plt.ylabel(ylabel)
     plt.show()
     plt.close('all')
+
+def average_grad(opt,grad,avg_steps):
+    for name,para in grad.items():
+        grad[name] = para/avg_steps
+
+def set_zero(grad):
+    for name,para in grad.items():
+        grad[name] = torch.zeros(para.size())
+
+#@azhar
+def unfreeze_head(model,head):
+    for name,param in model.named_parameters():
+        if head in name:
+            param.requires_grad = True
+
+#@azhar testing function    
+def paramCheck(model):
+    for name, param in model.named_parameters():
+        print(name,param.requires_grad)
 
 
 
