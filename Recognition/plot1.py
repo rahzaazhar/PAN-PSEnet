@@ -2,6 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats.stats import pearsonr
+from scipy.spatial import distance
 import seaborn
 import cv2
 
@@ -23,9 +24,9 @@ def plot_grad_sim(x, sims, module, para, ylabel,plot=True):
     ax.set_ylabel(ylabel)
     ax.grid(True)
     if plot:
-        plt.show()
+    	plt.show()
     else:
-        fig.savefig(opt.save_path+'/{}{}_gradSim.png'.format(module,para))
+    	fig.savefig(opt.save_path+'/{}{}_gradSim.png'.format(module,para))
     plt.close('all')
 
 
@@ -71,14 +72,19 @@ def plot_pearsonc(p_task1,lang1,p_task2,lang2):
     plt.show()
 
 
-def norm2(a,b):
+def norm2(a,b,dist='l2'):
     a = np.array(a)
     a = a/np.linalg.norm(a)
     b = np.array(b)
     b = b/np.linalg.norm(b)
-    #return np.sqrt(np.sum((a - b) ** 2))
-    return np.sqrt(np.sum((np.abs(a) - np.abs(b)) ** 2))
-    #return (1-np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b)))*100
+    if dist == 'l2':
+        #return np.sqrt(np.sum((a - b) ** 2))
+        return distance.euclidean(a,b)
+        #return distance.correlation(a,b)
+    if dist == 'al2':
+        return np.sqrt(np.sum((np.abs(a) - np.abs(b)) ** 2))
+    if dist == 'cosine':
+        return (1-np.dot(a,b)/(np.linalg.norm(a)*np.linalg.norm(b)))*100
     #return np.linalg.norm(a-b)
 
 def dot_product(a,b):
@@ -94,37 +100,43 @@ def check_para_equal(pa,pb):
             break
     return res
 
-def get_subset(l,nele):
-    return l[0:nele]
+def get_subset(l,start,nele):
+    if isinstance(l,dict):
+        d = {}
+        for name,values in l.items():
+            d[name] = values[start:nele]
+        return d 
+    else: 
+        return l[start:nele]
 
 def find_sims(sims,grads1,grads2):
     for grad1,grad2 in zip(grads1,grads2):
         gradient_similarity(sims,grad1,grad2)
 
 
-def execute_pearson_comp(grads1, metrics1, lang1, grads2, metrics2, lang2, plot=False):
+def execute_pearson_comp(grads1, metrics1, lang1, grads2, metrics2, lang2, plot=False, dist='l2'):
     sims_g1_g2 = {}
     for name in grads1[0].keys():
         if 'Predictions' not in name:
             sims_g1_g2[name] = []
     find_sims(sims_g1_g2, grads1, grads2)
     p_g1, p_g2 = compute_per_layer_pearsonc(sims_g1_g2, metrics1, metrics2)
-    similarity_score = 1-norm2(list(p_g1.values()),list(p_g2.values()))
+    similarity_score = 1-norm2(list(p_g1.values()),list(p_g2.values()),dist)
     
     if plot:
         plot_pearsonc(p_g1,lang1,p_g2,lang2)
     print('The similarity_score between '+lang1+' and '+lang2+' is:',similarity_score)
     return similarity_score
 
-def pearson_vs_iters(grads1,metrics1,lang1,grads2,metrics2,lang2):
+def pearson_vs_iters(grads1,metrics1,lang1,grads2,metrics2,lang2,dist):
     length = len(metrics1)
     scores = []
     for i in range(length):
-        grads1_subset = gen_subset(grads1,i+1)
-        grads2_subset = gen_subset(grads2,i+1)
-        metrics1_subset = gen_subset(metrics1,i+1)
-        metrics2_subset = gen_subset(metrics2,i+1)
-        score = execute_pearson_comp(grads1_subset,metrics1_subset,lang1,grads2_subset,metrics2_subset,lang2)
+        grads1_subset = get_subset(grads1,i+1)
+        grads2_subset = get_subset(grads2,i+1)
+        metrics1_subset = get_subset(metrics1,i+1)
+        metrics2_subset = get_subset(metrics2,i+1)
+        score = execute_pearson_comp(grads1_subset,metrics1_subset,lang1,grads2_subset,metrics2_subset,lang2,dist)
         scores.append(score)
     return scores
 
@@ -155,6 +167,55 @@ def paramCheck(model):
     for name, param in model.named_parameters():
         print(name,param.requires_grad)
 
+def all_gradsim_to_score(data,metric_names,distances,plot=False):
+    """
+    parameters:
+    data : dictionary of tuples with gradsimilarity and metrics for language pair {'AB':(gradsim,metrics)}
+    metrics_names: list of metrics to be used for similarity score evaluation
 
+    output:
+    similarity scores for all language pairs
+
+    """
+
+    encoding = {'A':'arab','B':'ban','H':'hin','M':'mar'}
+    for dist in distances:
+        for metric_name in metric_names:
+            print('Evaluating similarity_score using',metric_name,'with',dist,'distance')
+            for langpair, (gradsim,metrics) in data.items():
+                langpair = list(langpair)
+                lang1 = encoding[langpair[0]]
+                lang2 = encoding[langpair[1]]
+                metrics1= metrics[lang1][metric_name]
+                metrics2= metrics[lang2][metric_name]
+
+                p_g1, p_g2 = compute_per_layer_pearsonc(gradsim, metrics1, metrics2)
+                similarity_score = norm2(list(p_g1.values()),list(p_g2.values()),dist)
+                if plot:
+                    plot_pearsonc(p_g1,lang1,p_g2,lang2)
+                print('The similarity_score between '+lang1+' and '+lang2+' is:',similarity_score)
+            print()
+
+#plot variation of similarity score with iters for all language pairs for a given metric and distance
+def all_simscore_vs_iters(x,data,dist,metric_name,start):
+    length = len(x)
+    encoding = {'A':'arab','B':'ban','H':'hin','M':'mar'}
+    indx = x.index(start)
+    x = x[indx+1:]
+    for langpair, (gradsim,metrics) in data.items():
+        langpair = list(langpair)
+        lang1 = encoding[langpair[0]]
+        lang2 = encoding[langpair[1]]
+        metrics1= metrics[lang1][metric_name]
+        metrics2= metrics[lang2][metric_name]
+        scores = []
+        for i in range(indx,length-1):
+            gradsim_subset = get_subset(gradsim,indx,i+2)
+            metrics1_subset = get_subset(metrics1,indx,i+2)
+            metrics2_subset = get_subset(metrics2,indx,i+2)
+            p_g1, p_g2 = compute_per_layer_pearsonc(gradsim_subset, metrics1_subset, metrics2_subset)
+            similarity_score = norm2(list(p_g1.values()),list(p_g2.values()),dist)
+            scores.append(similarity_score)
+        simple_plot(x,scores,'iters','similarity score','similarity vs iters({}-{})'.format(lang1,lang2))
 
 
