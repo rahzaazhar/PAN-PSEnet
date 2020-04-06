@@ -36,11 +36,13 @@ DATA_URL = 'http://www.robots.ox.ac.uk/~ankush/data.tar.gz'
 #OUT_FILE = 'results/SynthText.h5'
 OUT_FILE = 'results/'
 
+#@azhar
 def writeCache(env, cache):
   with env.begin(write=True) as txn:
     for k, v in cache.items():
       txn.put(k, v)
 
+#@azhar
 def checkImageIsValid(imageBin):
   if imageBin is None:
     return False
@@ -56,6 +58,7 @@ def checkImageIsValid(imageBin):
     return False
   return True
 
+#@azhar
 def crop(img,bbox):
   bbox = np.transpose(bbox)
   topleft_x = int(np.min(bbox[:,0]))
@@ -166,7 +169,7 @@ def main(lang,gen_type,viz=False):
                             ninstance=INSTANCE_PER_IMAGE,viz=viz)
       #print(res)
       if len(res) > 0:
-
+        #@azhar
         for instance in range(len(res)):
           img = res[instance]['img']
           nw = len(res[instance]['txt'])
