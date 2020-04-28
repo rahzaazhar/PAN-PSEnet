@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from collections import deque
 from torch.utils.data import Subset
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
-from fastNLP import logger
+#from fastNLP import logger
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -135,6 +135,7 @@ class metricsLog():
         self.steps = []
         self.lang_metrics = {}
         self.save_plots = opt.save_path+'/plots/'
+        self.exp_name = opt.experiment_name
         os.makedirs(self.save_plots,exist_ok=True)
 
         for lang in lang_datas.keys():
@@ -169,8 +170,13 @@ class metricsLog():
           plt.savefig(plot_path+'{}.png'.format(name))
           plt.close('all')
     
-    def save_metrics(self):
-        torch.save(self.lang_metrics,self.save_plots+'metrics.pth')
+    def save_metrics(self,path=None):
+        exp_name = self.exp_name
+        if path == None:
+          torch.save(self.lang_metrics,self.save_plots+'metrics.pth')
+        else:
+          torch.save(self.lang_metrics,path+'{}.pth'.format(exp_name))
+
 
             
 
@@ -261,14 +267,23 @@ class LanguageData(object):
         
         if mode == 'dev':
             if useSyn:
-                Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
-                self.Synvalid_loader = self.genLoader(opt, Synvalid_dataset)
+                if lang in ['arab','hin','ban']:
+                  indices = list(range(2000))
+                  Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
+                  Synvalid_subset = Subset(Synvalid_dataset,indices)
+                  self.Synvalid_loader = self.genLoader(opt, Synvalid_subset)
+                else:
+                  Synvalid_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=opt)
+                  self.Synvalid_loader = self.genLoader(opt, Synvalid_dataset)
             if useReal:
                 Rvalid_dataset = hierarchical_dataset(lang, root=val_string+'/Real', opt=opt)
                 self.Rvalid_loader = self.genLoader(opt, Rvalid_dataset)
             train_dataset_eval = hierarchical_dataset(lang, root=train_string, opt=opt, select_data=select)
-            indices = list(range(int(0.2*len(train_dataset_eval))))
+            indices = list(range(int(1.0*len(train_dataset_eval))))
+            if lang in ['arab','hin','ban']:
+              indices = list(range(7701))
             train_subset = Subset(train_dataset_eval,indices)
+            print(len(train_subset))
             self.Tvalid_loader = self.genLoader(opt, train_subset)
         
         if mode == 'test':
@@ -298,10 +313,6 @@ class LanguageData(object):
                 shuffle=True,  # 'True' to check training progress with validation function.
                 num_workers=int(opt.workers),
                 collate_fn=self.AlignCollate_valid, pin_memory=True)
-
-def get_logger(name):
-    #return logging.getLogger(name)
-    return logger
 
 #@azhar
 def get_vocab():

@@ -77,11 +77,11 @@ def freeze_head(model,head):
 
 def train(opt,model,optimizer,criterion,pruner=None,masker=None):
     """ dataset preparation """
-    useReal = {'hin':True,'ban':True,'arab':True,'mar':False}
-    useSyn = {'hin':True,'ban':True,'arab':True,'mar':True}
+    useReal = {'hin':True,'ban':True,'arab':True,'mar':False,'sans':False,'kan':False,'odia':False,'tam':False,'mal':False,'tel':False}
+    useSyn = {'hin':True,'ban':True,'arab':True,'mar':True,'sans':True,'kan':True,'odia':True,'tam':True,'mal':True,'tel':True}
     langQ = []
     for lang,mode in zip(opt.langs, opt.mode):
-        if not mode[0]=='val':
+        if not mode=='val':
             langQ.append(lang)
     langQ = deque(langQ)
 
@@ -103,7 +103,7 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
     x = []
     j = 1
     avg_steps = 50
-    start_collect_iter = 1000
+    start_collect_iter = 0
     collect_flag = False
     grad_collect_checkpoints = list(range(start_collect_iter+(opt.valInterval-2*avg_steps)+1,opt.num_iter,opt.valInterval))
     print(grad_collect_checkpoints)
@@ -235,17 +235,18 @@ def train(opt,model,optimizer,criterion,pruner=None,masker=None):
                         #tflogger.record(lang, metrics[lang], globaliter)
                         logger.update_metrics(lang, metrics[lang])
                         logger.plot_metrics(lang)
-                    logger.save_metrics()    
-                    save_name = opt.experiment_name.split('_')
-                    save_name = save_name[0]+save_name[-1]
+                    logger.save_metrics(opt.exp_dir+'metrics/')
                     if opt.collect_grad:
                         x.append(globaliter)
                         for lang in opt.langs:
                             average_grad(opt,grads_collect[lang],avg_steps)
-                            grads_list[lang].append(copy.deepcopy(grads_collect[lang]))
-                            print(len(grads_list[lang]))
-                            torch.save(grads_list[lang],opt.save_path+'/grads_'+lang+'.pth')
-                            set_zero(grads_collect[lang])
+                        gradient_similarity(sims,grads_collect[opt.langs[0]],grads_collect[opt.langs[1]])
+                        multiplot(opt,x,sims)
+                        dump = OrderedDict()
+                        dump = {'iter':x,'grad_sims':sims}
+                        torch.save(dump,opt.exp_dir+'Gradsims/'+'{}.pth'.format(opt.experiment_name))
+                        set_zero(grads_collect[opt.langs[0]])
+                        set_zero(grads_collect[opt.langs[1]])
                         collect_flag = False
                         
                     loss_avg.reset()
