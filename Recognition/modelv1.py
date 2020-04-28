@@ -15,6 +15,7 @@ limitations under the License.
 """
 
 import torch.nn as nn
+import copy
 
 from modules.transformation import TPS_SpatialTransformerNetwork
 from modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
@@ -247,3 +248,33 @@ class SLSLstm(nn.Module):
             preds = self.Predictions[task](contextual_feature.contiguous(), text, is_train, batch_max_length=self.opt.batch_max_length)
         
         return preds
+
+class GradCL(nn.Module):
+
+    def __init__(self,template,tasks):
+        super(GradCL,self).__init__()
+        self.template = template
+        self.super_network = nn.ModuleDict()
+        for name, layer in template:
+            self.super_network[name] = nn.ModuleDict()
+            for idx,task in enumerate(tasks):
+                if idx == 0:
+                    self.super_network[name][task] = layer
+                else:
+                    self.super_network[name][task] = copy.copy(self.super_network[name][tasks[0]])
+
+
+    def forward(self,task,x):
+        for layer in self.super_network:
+            x = self.super_network[layer][task](x)
+        return x
+
+    def add_node(self,task,layer):
+        self.super_network[layer][task] = self.super_network[layer]['task0']
+
+
+
+
+
+
+        
