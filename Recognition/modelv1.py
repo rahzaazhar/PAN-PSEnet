@@ -260,11 +260,13 @@ class GradCL(nn.Module):
             for idx,task in enumerate(tasks):
                 if idx == 0:
                     self.super_network[name][task] = layer
+                elif name == 'output_layer':
+                    self.super_network[name][task] = copy.deepcopy(layer)
                 else:
                     self.super_network[name][task] = copy.copy(self.super_network[name][tasks[0]])
 
 
-    def forward(self,task,x):
+    def forward(self,x,task):
         for layer in self.super_network:
             x = self.super_network[layer][task](x)
         return x
