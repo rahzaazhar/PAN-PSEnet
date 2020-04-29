@@ -24,6 +24,7 @@ print(device)
 # step 1: find similar model
 # how? How do you collect gradients for this model?  
 #save template and parameters 
+#combined batch how will the network know which example belongs to which batch
 def weight_innit(model):
 	# weight initialization
 	for name, param in model.named_parameters():
@@ -104,6 +105,67 @@ def run(n_tasks):
 	train(model,optimizer,criterion,train_loaders['task_0'],val_loaders['task_0'],task_names)
 
 run(3)
+
+
+
+class LitModel(pl.LightningModule):
+	def __init__(self):
+        super().__init__(template,task_names)
+        self.model = GradCL(template,task_names)
+
+    def forward(x,task):
+    	return self.model(x,task)
+
+    def cross_entropy_loss(preds,targets):
+    	return nn.CrossEntropyLoss(preds,targets)
+
+    def configure_optimizers(self):
+    	optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+    	return optimizer
+
+#get_group_sim_score : returns overall group sim score, per layer sim score for each group task
+def learn_to_grow(model,criterion,optimizer,trainloaders,valloaders,tasks):
+	task_groups = {'group1':[]}
+	for task_id, current_task in enumerate(tasks):
+		if task_id == 0:
+			train_single_task(model,criterion,optimizer,trainloaders,current_task)
+			task_groups['group1'].append(current_task)
+			continue
+		#get architecture for new task then estimate its parameters
+		group_sim_scores = {}
+		for group_name, group_tasks in task_groups.items():
+			group_sim_scores[group_name] = get_group_sim_score(model,current_task,group_tasks,trainloaders,valloaders)
+		group,create_new_group = assign_group(group_sim_scores)
+		if create_new_group:
+			task_groups[group] = [current_task]
+			model.clone(current_task)
+			train_single_task(model,criterion,optimizer,trainloaders,current_task)
+			continue
+		else:
+			task_groups[group].append(current_task)
+			model.grow(group_sim_scores[group])
+			train_single_task(model,criterion,optimizer,trainloaders,current_task)
+
+def get_group_sim_score(model,current_task,group_tasks,trainloaders,valloaders):
+	#group_trainloader, group_valloader = get_group_loaders(group_tasks,trainloaders,valloaders)
+	pairwise_scores = {}
+	pairwise_layer_scores = {}
+	for task in group_tasks:
+		sim_score,layer_sim_score = train_task_pair(model,current_task,task,trainloaders,valloaders)#used to collect gradients and computing pearson
+		pairwise_scores[task]= sim_score
+		pairwise_layer_scores[task] = layer_sim_score
+
+	group_score = average(pairwise_scores)
+	return group_score, pairwise_layer_scores
+
+
+
+
+
+
+
+		
+
 
 
 
