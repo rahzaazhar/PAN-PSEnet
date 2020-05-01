@@ -251,20 +251,55 @@ class SLSLstm(nn.Module):
 
 class GradCL(nn.Module):
 
-    def __init__(self,template,tasks):
+    def __init__(self,template,sim_thres):
         super(GradCL,self).__init__()
-        self.template = template
+        self.template = template # template of the first task with the output head
         self.super_network = nn.ModuleDict()
-        for name, layer in template:
+        self.task_count = 0
+        self.tasks = []
+        self.sim_thres = sim_thres
+        #for name, layer in template:
+        for name, layer in template.items():
             self.super_network[name] = nn.ModuleDict()
-            for idx,task in enumerate(tasks):
+        #self.super_network['task_heads'] = nn.ModuleDict()
+            '''for idx,task in enumerate(tasks):
                 if idx == 0:
                     self.super_network[name][task] = layer
                 elif name == 'output_layer':
                     self.super_network[name][task] = copy.deepcopy(layer)
                 else:
-                    self.super_network[name][task] = copy.copy(self.super_network[name][tasks[0]])
+                    self.super_network[name][task] = copy.copy(self.super_network[name][tasks[0]])'''
 
+    def  init_subgraph(self,new_task_name, point_to_task=0):
+        #for layer_name, layer in self.template:
+        for layer_name, layer in self.template.items():
+            if self.task_count == 0:
+                self.super_network[layer_name][new_task_name] = layer
+            else:
+                self.super_network[layer_name][new_task_name] = copy.copy(self.super_network[layer_name][self.tasks[point_to_task]])
+        self.task_count = self.task_count + 1
+        self.tasks.append(new_task_name)
+
+    def change_subgraph_pointer(self,source_task,dest_task):
+        dest_task_index = self.tasks.index(dest_task)
+        self.init_subgraph(source_task,dest_task_index)
+
+    def save_model(path):
+        torch.save(self.super_network,path+'super_network.pth')
+
+    def load_model(path):
+        self.super_network = torch.load(path)
+
+    def grow_graph(self,new_task,selected_tasks,task_layerwise_sims):
+        for layer_name in self.template.keys():
+            most_similar_task = selected_tasks[0]
+            for task in selected_tasks:
+                if task_layerwise_sims[task][layer_name] > task_layerwise_sims[most_similar_task][layer_name]:
+                    most_similar_task = task
+            if task_layerwise_sims[most_similar_task][layer_name] > self.sim_thres:
+                self.point_to_node(new_task,most_similar_task,layer_name)
+            else:
+                self.add_node(new_task,layer_name)
 
     def forward(self,x,task):
         for layer in self.super_network:
@@ -272,11 +307,8 @@ class GradCL(nn.Module):
         return x
 
     def add_node(self,task,layer):
-        self.super_network[layer][task] = self.super_network[layer]['task0']
+        #self.super_network[layer][task] = self.super_network[layer]['task0']
+        self.super_network[layer][task] = copy.deepcopy(self.template[layer])
 
-
-
-
-
-
-        
+    def point_to_node(self,source_task,dest_task,layer_name):
+        self.super_network[layer_name][source_task] = copy.copy(self.super_network[layer_name][dest_task])
