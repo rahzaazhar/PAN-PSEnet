@@ -218,8 +218,6 @@ def train_task_pair(model,new_task,task,trainloaders,valloaders):
 				if 'task_head' not in name:
 					sims[name] = []
 					grads_collect[task][name] = torch.zeros(para.size())
-				elif lang in name:
-					grads_collect[task][name] = torch.zeros(para.size())
 
 	globaliter = 1
 	collect_flag = False
