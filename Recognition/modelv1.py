@@ -258,6 +258,7 @@ class GradCL(nn.Module):
         self.task_count = 0
         self.tasks = []
         self.sim_thres = sim_thres
+        #self.sub_graphs = {}
         #for name, layer in template:
         for name, layer in template.items():
             self.super_network[name] = nn.ModuleDict()
@@ -272,11 +273,17 @@ class GradCL(nn.Module):
 
     def  init_subgraph(self,new_task_name, point_to_task=0):
         #for layer_name, layer in self.template:
+        #if nclasses == 
+        #self.super_network['task_head'][new_task_name] = nn.Linear(200,nclasses) 
+        #self.sub_graphs[new_task_name] = {}
         for layer_name, layer in self.template.items():
             if self.task_count == 0:
                 self.super_network[layer_name][new_task_name] = layer
+                #self.sub_graphs[new_task_name][layer_name] = new_task_name
+
             else:
                 self.super_network[layer_name][new_task_name] = copy.copy(self.super_network[layer_name][self.tasks[point_to_task]])
+                #self.sub_graphs[new_task_name][layer_name] = self.tasks[point_to_task]
         self.task_count = self.task_count + 1
         self.tasks.append(new_task_name)
 
@@ -284,26 +291,31 @@ class GradCL(nn.Module):
         dest_task_index = self.tasks.index(dest_task)
         self.init_subgraph(source_task,dest_task_index)
 
-    def save_model(path):
-        torch.save(self.super_network,path+'super_network.pth')
+    def save_model(self,path):
+        torch.save(self.super_network,'super_network.pth')
 
-    def load_model(path):
+    def load_model(self,path):
         self.super_network = torch.load(path)
 
     def grow_graph(self,new_task,selected_tasks,task_layerwise_sims):
         for layer_name in self.template.keys():
-            most_similar_task = selected_tasks[0]
-            for task in selected_tasks:
-                if task_layerwise_sims[task][layer_name] > task_layerwise_sims[most_similar_task][layer_name]:
-                    most_similar_task = task
-            if task_layerwise_sims[most_similar_task][layer_name] > self.sim_thres:
-                self.point_to_node(new_task,most_similar_task,layer_name)
-            else:
-                self.add_node(new_task,layer_name)
+            if 'linear' in layer_name:
+                most_similar_task = selected_tasks[0]
+                smallest_score = (task_layerwise_sims[most_similar_task][layer_name+'.weight']+task_layerwise_sims[most_similar_task][layer_name+'.bias'])/2
+                for task in selected_tasks:
+                    new_score = (task_layerwise_sims[task][layer_name+'.weight']+task_layerwise_sims[task][layer_name+'.bias'])/2
+                    if new_score < smallest_score:
+                        most_similar_task = task
+                        smallest_score = new_score
+                if  smallest_score < self.sim_thres:
+                    self.point_to_node(new_task,most_similar_task,layer_name)
+                else:
+                    self.add_node(new_task,layer_name)
 
     def forward(self,x,task):
         for layer in self.super_network:
             x = self.super_network[layer][task](x)
+        #x = self.super_network['task_head'][task](x)
         return x
 
     def add_node(self,task,layer):
