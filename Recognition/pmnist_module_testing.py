@@ -3,10 +3,15 @@ import torch.nn as nn
 import train_pmnist
 from modelv1 import GradCL
 from collections import OrderedDict, deque
-from train_pmnist import train_single_task, train_task_pair
+from train_pmnist import train_single_task, train_task_pair, get_500_images_loader, get_activations
 from pmnist_dataset import get_Pmnist_tasks
 import torch.optim as optim 
 import copy
+import dataloaders.base
+import torch
+from dataloaders.datasetGen import SplitGen, PermutedGen
+from dataloaders.base import get_CIFAR100_tasks
+
 template = {'linear1_input':nn.Linear(32*32,200),'relu1':nn.ReLU(),'linear2':nn.Linear(200,200),'relu2':nn.ReLU(),
 				'linear3_output':nn.Linear(200,10),'softmax':nn.Softmax(dim=0)}
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -92,8 +97,51 @@ def test3():
 	dump = {'sims':sims,'x':x,'metrics':metrics}
 	torch.save(dump,'grads_collect_test.pth')
 	
+def test5():
+	#testing if same 500 images are used in the same order
+	train_dataset, val_dataset = dataloaders.base.__dict__['CIFAR100']('datasets/')
+	train_dataset_splits, val_dataset_splits, task_output_space = SplitGen(train_dataset, val_dataset,
+																		  first_split_sz=10,
+																		  other_split_sz=10,
+																		  rand_split=False,
+																		  remap_class=True)
 
-test2()
+	train_loaders, val_loaders = get_CIFAR100_tasks(train_dataset_splits, val_dataset_splits,32,device,False)
+	loader = get_500_images_loader(train_loaders['task_1'])
+	for idx,data in enumerate(loader):
+		print(data[1])
+	print('Second time')
+	for idx,data in enumerate(loader):
+		print(data[1])
+
+def test7():
+	template = {'linear1_input':nn.Linear(32*32,300),'relu1':nn.ReLU()}
+	model = GradCL(template,0.5)
+	model.init_subgraph('task_1',10)
+	#model.to('cuda')
+	#train_dataset, val_dataset = dataloaders.base.__dict__['CIFAR100']('datasets/')
+	'''train_dataset_splits, val_dataset_splits, task_output_space = SplitGen(train_dataset, val_dataset,
+																		  first_split_sz=10,
+																		  other_split_sz=10,
+																		  rand_split=False,
+																		  remap_class=True)'''
+
+	#train_loaders, val_loaders = get_CIFAR100_tasks(train_dataset_splits, val_dataset_splits,32,device,False)
+	train_loaders, val_loaders = get_Pmnist_tasks(3,32)
+	loader = get_500_images_loader(train_loaders['task_1'])
+	for x,y in loader:
+		print(x.size(),y)
+		x = x.view(2,32*32)
+		print(x.size(),y)
+		
+	out = get_activations(model,loader,'task_1')
+	#for name, act in out.items():
+	#	print(name,act,size())
+
+
+test7()
+#test5()
+#test2()
 #test3()
 
 
