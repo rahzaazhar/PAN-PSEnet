@@ -2,7 +2,7 @@ import os
 import argparse
 import numpy as np
 import torch
-from train import run_learn_to_grow
+from train_pmnist import run_learn_to_grow
 import L2G_config as M
 
 if __name__ == '__main__':
