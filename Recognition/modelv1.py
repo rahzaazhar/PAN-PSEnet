@@ -13,10 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+#import torch.nn.functional.relu as relu
+import torch
+import logging
+import torch.nn.functional as F
 import torch.nn as nn
 import copy
-
+import torchvision.models as vision_models
 from modules.transformation import TPS_SpatialTransformerNetwork
 from modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
 from modules.sequence_modeling import BidirectionalLSTM
@@ -94,7 +97,7 @@ class sharedCNNModel(nn.Module):
         if self.stages['Pred'] == 'CTC':
             preds = self.Predictions[rnnhead](contextual_feature.contiguous())
         else:
-        	preds = self.Predictions[rnnhead](contextual_feature.contiguous(), text, is_train, batch_max_length=self.opt.batch_max_length)
+            preds = self.Predictions[rnnhead](contextual_feature.contiguous(), text, is_train, batch_max_length=self.opt.batch_max_length)
 
         return preds
 
@@ -249,6 +252,33 @@ class SLSLstm(nn.Module):
         
         return preds
 
+
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+
+def get_alexnet_template(pretrained):
+    alexnet = vision_models.alexnet(pretrained=pretrained)
+    template = {}
+    feature_remapping = {'features.0':'conv2d_input1','features.1':'relu1','features.2':'maxpool1','features.3':'conv2d_2',
+            'features.4':'relu2','features.5':'maxpool2','features.6':'conv2d_3','features.7':'relu3',
+            'features.8':'conv2d_4','features.9':'relu4','features.10':'conv2d_5','features.11':'relu5',
+            'features.12':'maxpool3'}
+
+    linear_remapping = {'classifier.0':'dropout1','classifier.1':'linear1','classifier.2':'relu6','classifier.3':'dropout2',
+                'classifier.4':'linear2','classifier.5':'relu7'}
+    for name, module in alexnet.named_modules():
+        if 'features' in name and name in feature_remapping.keys():
+            template[feature_remapping[name]] = module
+    template['AdaptiveAvgPool2d'] = nn.AdaptiveAvgPool2d((6, 6))
+    template['flatten'] = Flatten()
+    for name, module in alexnet.named_modules():
+        if 'classifier' in name and name in linear_remapping.keys():
+            template[linear_remapping[name]] = module
+    return template
+
+
 class GradCL(nn.Module):
 
     def __init__(self,template,sim_thres):
@@ -258,22 +288,27 @@ class GradCL(nn.Module):
         self.task_count = 0
         self.tasks = []
         self.sim_thres = sim_thres
-        #self.sub_graphs = {}
+        self.sub_graphs = {}
         #for name, layer in template:
         for name, layer in template.items():
             self.super_network[name] = nn.ModuleDict()
-        #self.super_network['task_heads'] = nn.ModuleDict()
-            '''for idx,task in enumerate(tasks):
-                if idx == 0:
-                    self.super_network[name][task] = layer
-                elif name == 'output_layer':
-                    self.super_network[name][task] = copy.deepcopy(layer)
-                else:
-                    self.super_network[name][task] = copy.copy(self.super_network[name][tasks[0]])'''
+        self.super_network['task_heads'] = nn.ModuleDict()
+        #self.super_network['softmax'] = nn.ModuleDict()
 
-    def  init_subgraph(self,new_task_name, point_to_task=0):
+    def  init_subgraph(self,new_task_name,datamode,new_head=None, point_to_task=0):
         #for layer_name, layer in self.template:
-        #if nclasses == 
+        if not new_head == None:
+            if datamode == 'smnist' or datamode == 'pmnist':
+                self.super_network['task_heads'][new_task_name] = nn.Linear(300,new_head).cuda()
+            if datamode == 'CIFAR100':
+                self.super_network['task_heads'][new_task_name] = nn.Linear(2048,new_head).cuda()
+            if datamode == 'VDD':
+                self.super_network['task_heads'][new_task_name] = nn.Linear(4096,new_head).cuda()#new addition
+            #self.super_network['softmax'][new_task_name] = nn.Softmax(dim=1)
+        else:
+            self.super_network['task_heads'][new_task_name] = copy.copy(self.super_network['task_heads'][self.tasks[point_to_task]])
+            #self.super_network['softmax'][new_task_name] = copy.copy(self.super_network['softmax'][self.tasks[point_to_task]])
+
         #self.super_network['task_head'][new_task_name] = nn.Linear(200,nclasses) 
         #self.sub_graphs[new_task_name] = {}
         for layer_name, layer in self.template.items():
@@ -298,25 +333,65 @@ class GradCL(nn.Module):
         self.super_network = torch.load(path)
 
     def grow_graph(self,new_task,selected_tasks,task_layerwise_sims):
-        for layer_name in self.template.keys():
-            if 'linear' in layer_name:
-                most_similar_task = selected_tasks[0]
-                smallest_score = (task_layerwise_sims[most_similar_task][layer_name+'.weight']+task_layerwise_sims[most_similar_task][layer_name+'.bias'])/2
-                for task in selected_tasks:
-                    new_score = (task_layerwise_sims[task][layer_name+'.weight']+task_layerwise_sims[task][layer_name+'.bias'])/2
-                    if new_score < smallest_score:
-                        most_similar_task = task
-                        smallest_score = new_score
-                if  smallest_score < self.sim_thres:
-                    self.point_to_node(new_task,most_similar_task,layer_name)
-                else:
-                    self.add_node(new_task,layer_name)
+        #print('Growing Task',new_task)
+        self.sub_graphs[new_task] = {}
+        most_similar_task = selected_tasks[0]
+        selected_layers = []
+        for task in selected_tasks:
+            task_layerwise_sims[task] = {k: v for k, v in sorted(task_layerwise_sims[task].items(), key=lambda item: item[1], reverse=True)}
+            #print('In grow_graph')
+            #print('distribution over layers')
+            logging.debug('distribution over layers')
+            logging.debug('%s',task_layerwise_sims[task])
+            for name, score in task_layerwise_sims[task].items():
+                print(name+':'+str(score),end=' ')
+            
+            #print(task_layerwise_sims[task])
+            print()
+            cumulative_sim = 0
+            for layer_name, sim in task_layerwise_sims[task].items():
+                if cumulative_sim < self.sim_thres:
+                    cumulative_sim += sim
+                    selected_layers.append(layer_name)
+            for layer_name in self.template.keys():
+                if 'linear' in layer_name or 'conv2d' in layer_name:
+                    if layer_name in selected_layers:
+                        self.add_node(new_task,layer_name)
+                        print(layer_name,' added')
+                        logging.debug('%s added',layer_name)
+                        self.sub_graphs[new_task][layer_name] = 'new'
+                    else:
+                        self.point_to_node(new_task,most_similar_task,layer_name)
+                        print('binding to ',layer_name,' of',most_similar_task)
+                        logging.debug('binding to %s of %s',layer_name,most_similar_task)
+                        self.sub_graphs[new_task][layer_name] = layer_name+' of '+most_similar_task
 
-    def forward(self,x,task):
+    def get_layer_activations(self,x,task):
+        out = {}
         for layer in self.super_network:
             x = self.super_network[layer][task](x)
-        #x = self.super_network['task_head'][task](x)
-        return x
+            if 'linear' in layer or 'conv2d' in layer:
+                out[layer] = relu(x)#.view(x.size(0),-1)
+            if 'task_heads' in layer:
+                out[layer] = x#.view(x.size(0),-1)
+
+        return out
+
+    def forward(self,x,task,get_layer_activations=False):
+        if not get_layer_activations:
+            for layer in self.super_network:
+                x = self.super_network[layer][task](x)
+                #print(layer)
+            return x
+        else:
+            out = {}
+            for layer in self.super_network:
+                x = self.super_network[layer][task](x)
+                if 'linear' in layer or 'conv2d' in layer:
+                    out[layer] = F.relu(x)#.view(x.size(0),-1)
+                if 'task_heads' in layer:
+                    out[layer] = x#.view(x.size(0),-1)
+            return out
 
     def add_node(self,task,layer):
         #self.super_network[layer][task] = self.super_network[layer]['task0']
@@ -324,3 +399,5 @@ class GradCL(nn.Module):
 
     def point_to_node(self,source_task,dest_task,layer_name):
         self.super_network[layer_name][source_task] = copy.copy(self.super_network[layer_name][dest_task])
+
+

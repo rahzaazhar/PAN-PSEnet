@@ -2,15 +2,32 @@ import numpy as np
 import torch.nn as nn
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import rankdata, spearmanr
+#import pyrsa.data as rsd
+#import pyrsa.rdm as rsr
 #from torchvision.models._utils import IntermediateLayerGetter
 from modelv1 import GradCL
+class pyRSA():
+    def __init__(self,patterns1,patterns2):
+        
+        self.patterns1 = rsd.Dataset(patterns1.detach().cpu().numpy())
+        self.patterns2 = rsd.Dataset(patterns2.detach().cpu().numpy())
+
+    def create_RDMs(self):
+        self.rdm1 = rsr.calc_rdm(self.patterns1, method = 'correlation')
+        self.rdm2 = rsr.calc_rdm(self.patterns2, method = 'correlation')
+
+    def compute_RDM_similarity(self):
+        self.dissimilarity = rsr.compare(self.rdm1,self.rdm2,method='spearman')[0][0]
+        self.similarity = 1-self.dissimilarity
 
 class RSA():
     def __init__(self,patterns1,patterns2):
-        self.patterns1 = patterns1
-        self.patterns2 = patterns2
+        self.patterns1 = patterns1.detach().cpu().numpy()
+        self.patterns2 = patterns2.detach().cpu().numpy()
 
     def create_RDMs(self):
+
+
         self.rdm1 = pdist(self.patterns1,'correlation')
         self.rdm1_square = squareform(self.rdm1)
         self.rdm2 = pdist(self.patterns2,'correlation')
@@ -23,8 +40,9 @@ class RSA():
         print(self.rdm2_ranked)
 
     def compute_RDM_similarity(self):
-        self.rank_RDMs()
-        self.similarity, _ = spearmanr(self.rdm1_ranked,self.rdm2_ranked)
+        #self.rank_RDMs()
+        self.similarity, _ = spearmanr(self.rdm1,self.rdm2)
+        self.dissimilarity = self.similarity
 
 def test2():
     template = {'linear1_input':nn.Linear(32*32,300),'relu1':nn.ReLU(),'linear2':nn.Linear(300,300),'relu2':nn.ReLU(),
@@ -42,13 +60,17 @@ def test1():
     obs1 = np.random.randn(5,10)
     obs2 = np.random.randn(5,10)
     rsa = RSA(obs1,obs2)
+    pyrsa = pyRSA(obs1,obs2)
     rsa.create_RDMs()
-    print(rsa.rdm1_square)
+    pyrsa.create_RDMs()
+    '''print(rsa.rdm1_square)
     print(rsa.rdm1)
     print(rsa.rdm2_square)
-    print(rsa.rdm2)
+    print(rsa.rdm2)'''
     rsa.compute_RDM_similarity()
+    pyrsa.compute_RDM_similarity()
     print(rsa.similarity)
+    print(pyrsa.similarity)
 
 
-#test2()
+#test1()
