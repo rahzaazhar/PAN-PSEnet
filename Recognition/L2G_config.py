@@ -16,6 +16,7 @@ class L2BG_Config():
     freeze_past: bool = False
     epochs: int = 5
     alpha: float = 0.5
+    data_usage: float = 1.0
     #VDD data 
     data_dir: str = '/home/azhar/TextRecogShip/Recognition/decathlon/'
     imdb_dir: str = '/home/azhar/TextRecogShip/Recognition/decathlon/annotations'
@@ -47,6 +48,7 @@ config7 = L2BG_Config(exp_name='CIFAR100_10_freeze',exp_dir='L2G_graphs/',datamo
 config_CIFAR100_alpha = {}
 config_pmnist_alpha = {}
 config_smnist_alpha = {}
+config_VDD_alpha_5 = {}
 alphas = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 for al in alphas:
   config_CIFAR100_alpha['alpha'+str(al)] = L2BG_Config(exp_name='alpha'+str(al)+'_CIFAR100',exp_dir='L2GB_exps/',datamode='CIFAR100',sim_strat='RSA',
@@ -55,6 +57,8 @@ for al in alphas:
                                                   config_name='config_pmnist_alpha',n_tasks=10,alpha=al,epochs=5)
   config_pmnist_alpha['alpha'+str(al)] = L2BG_Config(exp_name='alpha'+str(al)+'_smnist',exp_dir='L2GB_exps/',datamode='smnist',sim_strat='RSA',
                                                   config_name='config_smnist_alpha',n_tasks=10,alpha=al,epochs=5)
+  config_VDD_alpha_5['alpha'+str(al)] = L2BG_Config(exp_name='alpha'+str(al)+'_VDD',exp_dir='L2GB_exps/VDD/alpha_exp_5ep/',datamode='VDD',sim_strat='RSA',
+                                                  config_name='config_VDD_alpha',n_tasks=8,alpha=al,epochs=5,data_usage=0.4)
 
 
 
@@ -71,9 +75,23 @@ config_smnist_test = L2BG_Config(exp_name='smnist_test',exp_dir='L2G_graphs/',da
                         config_name='config_pmnist',freeze_past=False,n_tasks=2,epochs=1)
 
 #config 8 To train VDD_test 
-config_VDD_test = L2BG_Config(exp_name='VDD_test',exp_dir='L2G_graphs/',datamode='VDD',sim_strat='RSA',
-                        config_name='config8',freeze_past=False,n_tasks=2,epochs=1)
+config_VDD_test = L2BG_Config(exp_name='VDD_test_1',exp_dir='L2G_graphs/',datamode='VDD',sim_strat='RSA',
+                        config_name='config8',freeze_past=False,n_tasks=6,epochs=2,data_usage=0.2)
 
 #config_san_1 To check if freezing is working or not
 config_san_1 = L2BG_Config(exp_name='freezing_check',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
                         config_name='config_san_1',freeze_past=True,n_tasks=2,epochs=1)
+
+
+#Configs to generate final graphs
+#pmnist
+final_config1 = L2BG_Config(exp_name='3ad_pmnist_test',exp_dir='L2G_graphs/',datamode='pmnist',sim_strat='RSA',
+                        config_name='config_pmnist',freeze_past=False,n_tasks=5,epochs=1)
+
+final_config2 = L2BG_Config(exp_name='3ad_Cifar',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
+                        config_name='CIFAR',freeze_past=False,n_tasks=10,epochs=5)
+
+CIFAR_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
+            config_name='config2')
+VDD_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='VDD',sim_strat='RSA',
+            config_name='config2')
