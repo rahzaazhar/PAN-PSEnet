@@ -4,10 +4,12 @@
 # This code is made available under the Apache v2.0 licence, see LICENSE.txt for details
 
 import torch.utils.data as data
+from torch.utils.data import Subset
 import torchvision
 import torchvision.transforms as transforms
 import torch
 import numpy as np
+import random
 import pickle
 #import config_task
 from PIL import Image
@@ -61,7 +63,7 @@ class ImageFolder(data.Dataset):
         return len(self.imgs)
 
 
-def prepare_data_loaders(dataset_names, data_dir, imdb_dir, batch_size, shuffle_train=True, index=None):
+def prepare_data_loaders(dataset_names, data_dir, imdb_dir, batch_size, data_usage, shuffle_train=True, index=None):
     train_loaders = []
     val_loaders = []
     num_classes = []
@@ -143,15 +145,35 @@ def prepare_data_loaders(dataset_names, data_dir, imdb_dir, batch_size, shuffle_
             ])
         
         img_path = data_dir
-        trainloader = torch.utils.data.DataLoader(ImageFolder(data_dir, transform_train, None, index, labels_train, imgnames_train), batch_size=batch_size, shuffle=shuffle_train, num_workers=4, pin_memory=True)
-        valloader = torch.utils.data.DataLoader(ImageFolder(data_dir, transform_test, None, None, labels_val, imgnames_val), batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        train_dataset = ImageFolder(data_dir, transform_train, None, index, labels_train, imgnames_train)
+        val_dataset = ImageFolder(data_dir, transform_test, None, None, labels_val, imgnames_val)
+        total_train_data_points = len(train_dataset)
+        total_val_data_points = len(val_dataset)
+        print('-----------------------------------------------')
+        print('Dataset:',dataset_names[i])
+        print('Training samples:',total_train_data_points)
+        print('Validation samples:',total_val_data_points)
+        print('Data Usage:',data_usage,'%')
+        select_train = int(data_usage*total_train_data_points)
+        select_val = int(data_usage*total_val_data_points)
+        print('Now Using')
+        print('Training samples:',select_train)
+        print('Validation samples:',select_val)
+        print('------------------------------------------------')
+        train_indices = random.sample(range(0,total_train_data_points),select_train)
+        val_indices = random.sample(range(0,total_val_data_points),select_val)
+        train_dataset = Subset(train_dataset,train_indices)
+        val_dataset = Subset(val_dataset,val_indices)
+        
+        trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_train, num_workers=4, pin_memory=True)
+        valloader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
         train_loaders.append(trainloader)
         val_loaders.append(valloader) 
     
     return train_loaders, val_loaders, num_classes
 
-def get_tasks_VDD(dataset_names,data_dir, imdb_dir,batch_size):
-    train_loaders, val_loaders, num_classes = prepare_data_loaders(dataset_names,data_dir,imdb_dir,batch_size)
+def get_tasks_VDD(dataset_names,data_dir, imdb_dir,batch_size,data_usage):
+    train_loaders, val_loaders, num_classes = prepare_data_loaders(dataset_names,data_dir,imdb_dir,batch_size,data_usage)
     train_loaders_dict = {}
     val_loaders_dict = {}
     num_classes_dict = {}

@@ -190,7 +190,7 @@ def find_similar_tasks(task_sim_scores,n=3):
 
 def get_500_images_loader(train_loader):
     total_data_points = len(train_loader.dataset)
-    indices = random.sample(range(0,total_data_points),500)
+    indices = random.sample(range(0,total_data_points),100)
     dataset_500 = Subset(train_loader.dataset,indices)
     return torch.utils.data.DataLoader(dataset_500, batch_size=20, shuffle=False, num_workers=1)
 
@@ -370,6 +370,7 @@ def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,
         #freeze_past_sanity_check(model)
         print('\n---->Growth step4: Training grown model on new_task', new_task)
         logging.debug('\n---->Growth step4: Training grown model on new_task %s', new_task)
+        model.to(device)
         train_single_task(model,criterion,optimizer,train_loaders[new_task],val_loaders[new_task],new_task,datamode,epochs)
         tasks.append(new_task)
         print('\n######Testing on previous tasks after training task:',new_task,'######')
@@ -441,8 +442,8 @@ def run_learn_to_grow(opt):
               'linear2':nn.Linear(2048,2048),'relu5':nn.ReLU()}
         task_classes = 10
     if opt.datamode == 'VDD':
-        task_names = ['dtd','omniglot','aircraft','gtsrb','svhn','ucf101','vgg-flowers','cifar100','daimlerpedcls']
-        train_loaders, val_loaders, task_classes = get_tasks_VDD(task_names,opt.data_dir,opt.imdb_dir,batch_size)
+        task_names = ['dtd','aircraft','gtsrb','svhn','ucf101','vgg-flowers','cifar100','daimlerpedcls']
+        train_loaders, val_loaders, task_classes = get_tasks_VDD(task_names,opt.data_dir,opt.imdb_dir,batch_size,opt.data_usage)
         template = get_alexnet_template(pretrained=True)
 
 
