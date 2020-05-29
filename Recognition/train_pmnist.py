@@ -190,7 +190,7 @@ def find_similar_tasks(task_sim_scores,n=3):
 
 def get_500_images_loader(train_loader):
     total_data_points = len(train_loader.dataset)
-    indices = random.sample(range(0,total_data_points),100)
+    indices = random.sample(range(0,total_data_points),500)
     dataset_500 = Subset(train_loader.dataset,indices)
     return torch.utils.data.DataLoader(dataset_500, batch_size=20, shuffle=False, num_workers=1)
 
