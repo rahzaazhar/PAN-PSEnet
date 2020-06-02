@@ -6,12 +6,18 @@ def viz_one_net(n):
             r = (v.split()[2]).split('_')[1]
             res += f' {r},'
     return res
+
+
 def viz_jnet(data):
-    print('columns: ', list(data.keys()) )
+    print('columns: ',  )
     res = ''
+    cols = None
     for k, v in data.items():
+        if not cols: cols = f'columns: {list(v.keys())}'
         nodes = viz_one_net(v)
         res += '{:>10s}:'.format(k) + f' {nodes} \n'
+
+    res = f'{cols}\n{res}'
     return res
 
 

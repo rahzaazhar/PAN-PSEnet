@@ -24,6 +24,11 @@ import random
 import math
 import numpy as np
 import sys
+
+from plot_jnet import viz_jnet
+
+
+
 random.seed(1111)
 torch.manual_seed(1111)
 np.random.seed(1111)
@@ -523,7 +528,7 @@ def run_learn_to_grow(opt):
                                     datamode,freeze_past,task_classes,epochs,opt.sim_strat)
     num_paras = compute_num_para(model)
     save_results(opt,model,x,avg_acc,avg_diff)
-    print(model.sub_graphs)
+    print(viz_jnet(model.sub_graphs))
     return x, avg_acc, avg_diff, num_paras
     
 
