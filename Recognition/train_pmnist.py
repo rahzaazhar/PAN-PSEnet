@@ -13,6 +13,7 @@ from pmnist_dataset import get_Pmnist_tasks
 from dataloaders.datasetGen import SplitGen
 from dataloaders.base import get_tasks
 from VDD_loader import get_tasks_VDD
+from test import validation
 import dataloaders.base
 import matplotlib.pyplot as plt
 import L2G_config as M
@@ -106,13 +107,27 @@ def test(model,criterion,test_loader,task,datamode):
 def train_single_task(model,criterion,optimizer,trainloader,valloader,new_task,datamode,epochs=3):
     start_time = time.time()
     print_step = math.ceil(len(trainloader)/10)
+    if datamode == 'mltr':
+        converter = trainloader.dataset.datasets[0].labelconverter
     for epoch in range(epochs):
         for batch_idx, data in enumerate(trainloader):
-            x, y = data_trasnsform(data,datamode)
-            x = x.to(device)
-            y = y.to(device)
-            output = model(x,new_task)
-            loss = criterion(output,y)
+            if datamode == 'mltr':
+                x,labels = data_trasnsform(data,datamode)
+                x = x.to(device)
+                text, length = converter.encode(labels, batch_max_length=30)
+                batch_size = x.size(0) 
+                output = model(x,new_task).log_softmax(2)
+                output_size = torch.IntTensor([output.size(1)] * batch_size)
+                output = output.permute(1, 0, 2)  # to use CTCLoss format
+                torch.backends.cudnn.enabled = False
+                loss = criterion(output, text.to(device), output_size.to(device), length.to(device))
+                torch.backends.cudnn.enabled = True
+            else:
+                x, y = data_trasnsform(data,datamode)
+                x = x.to(device)
+                y = y.to(device)
+                output = model(x,new_task)
+                loss = criterion(output,y)
             model.zero_grad()
             loss.backward()
             optimizer.step()
@@ -120,6 +135,9 @@ def train_single_task(model,criterion,optimizer,trainloader,valloader,new_task,d
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(x), len(trainloader.dataset),
                 100. * batch_idx / len(trainloader), loss.item()))
+        #if datamode == 'mltr':
+        #    acc = validation()
+        #else:
         acc, _ = test(model,criterion,valloader,new_task,datamode)
     end_time = time.time()
     train_time = round(end_time-start_time,2)
@@ -167,12 +185,28 @@ def score_to_distribution(layer_scores):
     return layer_scores
 
 
-def freeze_past(model,new_task):
-    for name, para in model.named_parameters():
-        if new_task in name:
-            para.requires_grad = True
-        else:
-            para.requires_grad = False
+def freeze_past(model,new_task,method='freeze'):
+    if method == 'freeze':
+        for name, para in model.named_parameters(): 
+            if new_task in name:
+                para.requires_grad = True
+            else:
+                para.requires_grad = False
+        return []
+    if method == 'slow_lr':
+        new_paras = []
+        shared_paras = []
+        for name, para in model.named_parameters(): 
+            if new_task in name:
+                new_paras.append(para)
+            else:
+                shared_paras.append(para)
+
+        return new_paras, shared_paras
+
+
+
+
 
 
 def freeze_past_sanity_check(model):
@@ -211,6 +245,10 @@ def flatten_filter_activations(activations,datamode):
 
 
 def data_trasnsform(data,datamode):
+    if datamode == 'mltr':
+        x = data[0]
+        labels = data[1]
+        return x,labels
     if datamode == 'pmnist' or datamode == 'smnist':
         x = data[0]
         x = x.view(x.size(0),32*32*1)
@@ -287,7 +325,7 @@ def get_new_task_activations(image_loader_500,new_task,train_loaders,val_loaders
     return activations_new_task, acc
 
 
-def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,freeze,task_classes=None,epochs=10,similarity='pearson'):
+def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,freeze=None,task_classes=None,epochs=10,similarity='pearson'):
     birth = time.time()
     print('###Initiating Growing Process###')
     logging.debug('###Initiating Growing Process###')
@@ -317,9 +355,10 @@ def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,
         if datamode == 'CIFAR100':
             n_classes = task_classes
             model.init_subgraph(new_task,datamode,n_classes)
-        if datamode == 'VDD':
+        if datamode == 'VDD' or datamode == 'mltr':
             n_classes = task_classes[new_task]
             model.init_subgraph(new_task,datamode,n_classes)
+
 
         if task_id == 0:
             print('Only Training for initial task')
@@ -347,9 +386,14 @@ def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,
             task_layerwise_sims, task_sim_scores = RSA_Sim(model,new_task,tasks,train_loaders,val_loaders,activations_new_task,image_loader_500,datamode)
             acc_mono.append(acc)
 
+        if similarity == 'random_growth':
+        	selected_tasks = list(np.random.choice(tasks,1))
+        else:
+        	selected_tasks = find_similar_tasks(task_sim_scores,n=1)
+
         print('\n---->Growth step2: Find most similar task')
         logging.debug('\n---->Growth step2: Find most similar task')
-        selected_tasks = find_similar_tasks(task_sim_scores,n=1)#returns list containing k similar tasks
+        #returns list containing k similar tasks
         print(task_sim_scores)
         logging.debug('%s',task_sim_scores)
         logging.debug('Selected Task %s',selected_tasks[0])
@@ -357,15 +401,29 @@ def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,
 
         logging.debug('\n---->Growth step3: Model Growth')
         print('\n---->Growth step3: Model Growth')
-        model.grow_graph(new_task,selected_tasks,task_layerwise_sims)
+        if similarity == 'random_growth':
+            acc = train_single_task(model,criterion,optimizer,train_loaders[new_task],val_loaders[new_task],new_task,datamode,epochs)
+            acc_mono.append(acc)
+            model.random_growth(new_task,selected_tasks)
+        else:
+        	model.grow_graph(new_task,selected_tasks,task_layerwise_sims)
         #print("After Growing")
         #freeze_past_sanity_check(model)
         #account for new parameters added
-        if freeze:
-            freeze_past(model,new_task)
-        #print("After freezing")
-        #freeze_past_sanity_check(model)
-        optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        if freeze=='slow_lr':
+            new_paras, shared_paras = freeze_past(model,new_task,freeze)
+            optimizer = optim.SGD([
+                {'params': new_paras},
+                {'params': shared_paras, 'lr': 1e-3}
+            ], lr=1e-2, momentum=0.9)
+        if freeze == 'freeze':
+            _ = freeze_past(model,new_task,freeze)
+            #print("After freezing")
+            #freeze_past_sanity_check(model)
+            optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        if freeze == 'none':
+            optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        
         #print("After optimizer call")
         #freeze_past_sanity_check(model)
         print('\n---->Growth step4: Training grown model on new_task', new_task)
@@ -445,19 +503,28 @@ def run_learn_to_grow(opt):
         task_names = ['dtd','aircraft','gtsrb','svhn','ucf101','vgg-flowers','cifar100','daimlerpedcls']
         train_loaders, val_loaders, task_classes = get_tasks_VDD(task_names,opt.data_dir,opt.imdb_dir,batch_size,opt.data_usage)
         template = get_alexnet_template(pretrained=True)
+    if opt.datamode == 'mltr':
+        task_names = ['arab','hin','ban','mar']
+        #train_loaders, val_loaders = get_MLT_loaders(task_names)
+        #template = get_mlt_template()
+
+
 
 
     task_names_sub = task_names[0:opt.n_tasks]
     model = GradCL(template,opt.alpha)
     model.to(device)
     print(model)
-    criterion = nn.CrossEntropyLoss()
-    task_cnt,avg_acc,avg_diff = learn_to_grow(model,criterion,train_loaders,val_loaders,task_names_sub,
-                                    datamode,freeze_past,task_classes,epochs,'RSA')
+    if datamode == 'mltr':
+        criterion = torch.nn.CTCLoss(zero_infinity=True)
+    else:
+        criterion = nn.CrossEntropyLoss()
+    x,avg_acc,avg_diff = learn_to_grow(model,criterion,train_loaders,val_loaders,task_names_sub,
+                                    datamode,freeze_past,task_classes,epochs,opt.sim_strat)
     num_paras = compute_num_para(model)
-    save_results(opt,model,task_cnt,avg_acc,avg_diff)
+    save_results(opt,model,x,avg_acc,avg_diff)
     print(model.sub_graphs)
-    return task_cnt, avg_acc, avg_diff, num_paras
+    return x, avg_acc, avg_diff, num_paras
     
 
 def save_results(opt,model,x,avg_acc,avg_diff):

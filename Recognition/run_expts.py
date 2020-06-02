@@ -18,4 +18,4 @@ if __name__ == '__main__':
     else:
         task_ids, avg_acc, avg_diff, num_paras = run_learn_to_grow(opts)
         # each element in the vector res is the average acc/diff after the nth task
-        print(task_ids, avg_acc, avg_diff, num_paras)
+        print('run_expts:', task_ids, avg_acc, avg_diff, num_paras)
