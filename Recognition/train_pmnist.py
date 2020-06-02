@@ -13,7 +13,7 @@ from pmnist_dataset import get_Pmnist_tasks
 from dataloaders.datasetGen import SplitGen
 from dataloaders.base import get_tasks
 from VDD_loader import get_tasks_VDD
-from test import validation
+from test import validation_CL
 import dataloaders.base
 import matplotlib.pyplot as plt
 import L2G_config as M
@@ -26,7 +26,6 @@ import numpy as np
 import sys
 
 from plot_jnet import viz_jnet
-
 
 
 random.seed(1111)
@@ -112,8 +111,11 @@ def test(model,criterion,test_loader,task,datamode):
 def train_single_task(model,criterion,optimizer,trainloader,valloader,new_task,datamode,epochs=3):
     start_time = time.time()
     print_step = math.ceil(len(trainloader)/10)
-    if datamode == 'mltr':
+    if datamode == 'mltr' and new_task in ['hin','arab','ban']:
+        converter = trainloader.dataset.dataset.datasets[0].labelconverter
+    elif datamode == 'mltr':
         converter = trainloader.dataset.datasets[0].labelconverter
+
     for epoch in range(epochs):
         for batch_idx, data in enumerate(trainloader):
             if datamode == 'mltr':
@@ -140,10 +142,10 @@ def train_single_task(model,criterion,optimizer,trainloader,valloader,new_task,d
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(x), len(trainloader.dataset),
                 100. * batch_idx / len(trainloader), loss.item()))
-        #if datamode == 'mltr':
-        #    acc = validation()
-        #else:
-        acc, _ = test(model,criterion,valloader,new_task,datamode)
+        if datamode == 'mltr':
+            acc,_ = validation_CL(model,criterion,valloader,new_task)
+        else:
+            acc, _ = test(model,criterion,valloader,new_task,datamode)
     end_time = time.time()
     train_time = round(end_time-start_time,2)
     print("training time:",train_time)
@@ -515,8 +517,11 @@ def run_learn_to_grow(opt):
 
 
 
-
-    task_names_sub = task_names[0:opt.n_tasks]
+    if opt.run_single:
+        index = task_names.index(opt.single_task_name)
+        task_names_sub = [task_names[index]]
+    else:
+        task_names_sub = task_names[0:opt.n_tasks]
     model = GradCL(template,opt.alpha)
     model.to(device)
     print(model)

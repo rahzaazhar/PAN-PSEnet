@@ -9,6 +9,7 @@ class L2BG_Config():
     config_name: str
     exp_dir: str
     datamode: str
+    single_task_name: str = 'aircraft'
     n_tasks: int = 5
     lr: float = 0.01
     batch_size: int = 64
@@ -17,6 +18,7 @@ class L2BG_Config():
     epochs: int = 5
     alpha: float = 0.5
     data_usage: float = 1.0
+    run_single: False
     #VDD data 
     data_dir: str = '/home/azhar/TextRecogShip/Recognition/decathlon/'
     imdb_dir: str = '/home/azhar/TextRecogShip/Recognition/decathlon/annotations'
@@ -94,6 +96,8 @@ final_config2 = L2BG_Config(exp_name='3ad_Cifar_freeze_5ep',exp_dir='L2G_graphs/
 final_config3 = L2BG_Config(exp_name='Cifar_slowlr_5ep',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
                         config_name='CIFAR',freeze_past='slow_lr',n_tasks=10,epochs=5)
 
+single_task_config = L2BG_Config(exp_name='single_task_run_cifar',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
+                        config_name='CIFAR',freeze_past='slow_lr',n_tasks=10,epochs=5,single_task_name='aircraft',run_single=True)
 CIFAR_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
             config_name='config2')
 VDD_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='VDD',sim_strat='RSA',
