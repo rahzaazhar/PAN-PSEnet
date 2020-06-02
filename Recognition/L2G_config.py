@@ -13,7 +13,7 @@ class L2BG_Config():
     lr: float = 0.01
     batch_size: int = 64
     sim_strat: str = 'RSA'
-    freeze_past: bool = False
+    freeze_past: str = 'freeze'
     epochs: int = 5
     alpha: float = 0.5
     data_usage: float = 1.0
@@ -23,8 +23,8 @@ class L2BG_Config():
 
 
 #config1 To find out whwther a randomly grown network performs worse than RSA strategy 
-config1 = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='smnist',sim_strat='random_growth',
-						config_name='config2')
+config1 = L2BG_Config(exp_name='Random_growth_10T',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='random_growth',
+						config_name='config2',n_tasks=10,epochs=5)
 #config2 To train on CIFAR100 using RSA_sim
 config2 = L2BG_Config(exp_name='RSA_sim',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
 						config_name='config2')
@@ -88,8 +88,11 @@ config_san_1 = L2BG_Config(exp_name='freezing_check',exp_dir='L2G_graphs/',datam
 final_config1 = L2BG_Config(exp_name='3ad_pmnist_test',exp_dir='L2G_graphs/',datamode='pmnist',sim_strat='RSA',
                         config_name='config_pmnist',freeze_past=False,n_tasks=5,epochs=1)
 
-final_config2 = L2BG_Config(exp_name='3ad_Cifar',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
-                        config_name='CIFAR',freeze_past=False,n_tasks=10,epochs=5)
+final_config2 = L2BG_Config(exp_name='3ad_Cifar_freeze_5ep',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
+                        config_name='CIFAR',freeze_past='freeze',n_tasks=10,epochs=5)
+
+final_config3 = L2BG_Config(exp_name='Cifar_slowlr_5ep',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
+                        config_name='CIFAR',freeze_past='slow_lr',n_tasks=10,epochs=5)
 
 CIFAR_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
             config_name='config2')
