@@ -452,10 +452,12 @@ def run_learn_to_grow(opt):
     model.to(device)
     print(model)
     criterion = nn.CrossEntropyLoss()
-    x,avg_acc,avg_diff = learn_to_grow(model,criterion,train_loaders,val_loaders,task_names_sub,
+    task_cnt,avg_acc,avg_diff = learn_to_grow(model,criterion,train_loaders,val_loaders,task_names_sub,
                                     datamode,freeze_past,task_classes,epochs,'RSA')
-    save_results(opt,model,x,avg_acc,avg_diff)
+    num_paras = compute_num_para(model)
+    save_results(opt,model,task_cnt,avg_acc,avg_diff)
     print(model.sub_graphs)
+    return task_cnt, avg_acc, avg_diff, num_paras
     
 
 def save_results(opt,model,x,avg_acc,avg_diff):
