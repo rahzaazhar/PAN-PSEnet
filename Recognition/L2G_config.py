@@ -1,4 +1,10 @@
 from dataclasses import dataclass, replace
+import torch.nn as nn
+from modules.sequence_modeling import BidirectionalLSTM
+
+
+
+
 
 @dataclass
 class L2BG_Config():
@@ -9,6 +15,7 @@ class L2BG_Config():
     config_name: str
     exp_dir: str
     datamode: str
+    pretrain_path: str = ''
     single_task_name: str = 'aircraft'
     n_tasks: int = 5
     lr: float = 0.01
@@ -18,7 +25,7 @@ class L2BG_Config():
     epochs: int = 5
     alpha: float = 0.5
     data_usage: float = 1.0
-    run_single: False
+    run_single: bool = False
     #VDD data 
     data_dir: str = '/home/azhar/TextRecogShip/Recognition/decathlon/'
     imdb_dir: str = '/home/azhar/TextRecogShip/Recognition/decathlon/annotations'
@@ -83,8 +90,7 @@ config_VDD_test = L2BG_Config(exp_name='VDD_test_1',exp_dir='L2G_graphs/',datamo
 #config_san_1 To check if freezing is working or not
 config_san_1 = L2BG_Config(exp_name='freezing_check',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
                         config_name='config_san_1',freeze_past=True,n_tasks=2,epochs=1)
-
-
+ 
 #Configs to generate final graphs
 #pmnist
 final_config1 = L2BG_Config(exp_name='3ad_pmnist_test',exp_dir='L2G_graphs/',datamode='pmnist',sim_strat='RSA',
@@ -96,9 +102,18 @@ final_config2 = L2BG_Config(exp_name='3ad_Cifar_freeze_5ep',exp_dir='L2G_graphs/
 final_config3 = L2BG_Config(exp_name='Cifar_slowlr_5ep',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
                         config_name='CIFAR',freeze_past='slow_lr',n_tasks=10,epochs=5)
 
+final_config4 = L2BG_Config(exp_name='pmnist_freeze_5ep',exp_dir='L2G_graphs/',datamode='pmnist',sim_strat='RSA',
+                        config_name='CIFAR',freeze_past='freeze',n_tasks=10,epochs=5)
+
 single_task_config = L2BG_Config(exp_name='single_task_run_cifar',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
                         config_name='CIFAR',freeze_past='slow_lr',n_tasks=10,epochs=5,single_task_name='aircraft',run_single=True)
 CIFAR_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
             config_name='config2')
 VDD_base = L2BG_Config(exp_name='Random_growth',exp_dir='L2G_graphs/',datamode='VDD',sim_strat='RSA',
             config_name='config2')
+
+MLT_test_config = L2BG_Config(exp_name='MLTR_test',exp_dir='L2G_graphs/',datamode='mltr',sim_strat='RSA',
+            config_name='config2',n_tasks=2,epochs=1)
+
+cifar_with_pretrain = L2BG_Config(exp_name='CIFAR100_pretrain',exp_dir='L2G_graphs/',datamode='CIFAR100',sim_strat='RSA',
+                        config_name='config_san_1',freeze_past=True,n_tasks=10,epochs=5,pretrain_path='L2G_graphs/pretrained/')

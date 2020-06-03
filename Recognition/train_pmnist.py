@@ -1,6 +1,9 @@
 import torch
-from modelv1 import GradCL, Flatten, get_alexnet_template
+from modelv1 import GradCL, Flatten, get_alexnet_template#, visual_context MLT
+from modules.sequence_modeling import BidirectionalLSTM
 import pmnist_dataset
+from datasetv1 import AlignCollate
+#from mlt_loader import get_MLT_loaders MLT
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,7 +16,7 @@ from pmnist_dataset import get_Pmnist_tasks
 from dataloaders.datasetGen import SplitGen
 from dataloaders.base import get_tasks
 from VDD_loader import get_tasks_VDD
-from test import validation_CL
+#from test import validation_CL MLT
 import dataloaders.base
 import matplotlib.pyplot as plt
 import L2G_config as M
@@ -22,6 +25,7 @@ import argparse
 import time
 import random
 import math
+import os
 import numpy as np
 import sys
 
@@ -230,9 +234,11 @@ def find_similar_tasks(task_sim_scores,n=3):
 
 
 def get_500_images_loader(train_loader):
+    #AlignCollate_valid = AlignCollate(imgH=32, imgW=100, keep_ratio_with_pad=False) MLT
     total_data_points = len(train_loader.dataset)
     indices = random.sample(range(0,total_data_points),500)
     dataset_500 = Subset(train_loader.dataset,indices)
+    #return torch.utils.data.DataLoader(dataset_500, batch_size=20, shuffle=False, num_workers=1,collate_fn=AlignCollate_valid) MLT
     return torch.utils.data.DataLoader(dataset_500, batch_size=20, shuffle=False, num_workers=1)
 
 
@@ -295,16 +301,18 @@ def RSA_Sim(model,new_task,tasks,train_loaders,val_loaders,activations_new_task,
             rsa = RSA(activations_new_task[name],activations_task[name])
             rsa.create_RDMs()
             rsa.compute_RDM_similarity()
-            pairwise_layer_scores[task][name] = rsa.similarity
+            pairwise_layer_scores[task][name] = round(rsa.similarity,3)
         pairwise_task_scores[task] = round(np.linalg.norm(list(pairwise_layer_scores[task].values()))/2,3)
+        print(task,':',pairwise_layer_scores[task])
         pairwise_layer_scores[task] = score_to_distribution(pairwise_layer_scores[task])
+
     end_time = time.time()
     function_time = end_time - start_time
     print('time taken for RSA_Sim execution', function_time)
     return pairwise_layer_scores, pairwise_task_scores
 
 
-def get_new_task_activations(image_loader_500,new_task,train_loaders,val_loaders,datamode,epochs,n_class=10):
+def get_new_task_activations(image_loader_500,new_task,train_loaders,val_loaders,datamode,epochs,path_pretrain,n_class=10):
     if datamode == 'pmnist' or datamode == 'smnist' :
         template = {'linear1_input':nn.Linear(32*32,300),'relu1':nn.ReLU(),
                     'linear2':nn.Linear(300,300),'relu2':nn.ReLU(),
@@ -317,22 +325,44 @@ def get_new_task_activations(image_loader_500,new_task,train_loaders,val_loaders
                     'linear2':nn.Linear(2048,2048)}
     if datamode == 'VDD':
         template = get_alexnet_template(pretrained=True)
+    if datamode == 'mltr':
+        template = {'conv2d_input1':nn.Conv2d(1, 64, 3, 1, 1), 'relu1':nn.ReLU(),'maxpool1':nn.MaxPool2d(2, 2),
+            'conv2d_2':nn.Conv2d(64, 128, 3, 1, 1),'relu2':nn.ReLU(),'maxpool2':nn.MaxPool2d(2, 2),
+            'conv2d_3':nn.Conv2d(128, 256, 3, 1, 1), 'relu3':nn.ReLU(),
+            'conv2d_4':nn.Conv2d(256, 256, 3, 1, 1), 'relu4':nn.ReLU(True),'maxpool3':nn.MaxPool2d((2, 1), (2, 1)),
+            'conv2d_5':nn.Conv2d(256, 512, 3, 1, 1, bias=False),'bn1':nn.BatchNorm2d(512), 'relu5':nn.ReLU(),
+            'conv2d_6':nn.Conv2d(512, 512, 3, 1, 1, bias=False),'bn2':nn.BatchNorm2d(512), 'relu6':nn.ReLU(),'maxpool4':nn.MaxPool2d((2, 1), (2, 1)),
+            'conv2d_7':nn.Conv2d(512, 512, 2, 1, 0), 'relu7':nn.ReLU(True),'vis_context':visual_context(),
+            'BiLstm_1':BidirectionalLSTM(512,256,256),
+            'BiLstm_2':BidirectionalLSTM(256,256,256)}
         
     model_temp = GradCL(template,0.5)
     model_temp.to('cuda')
     model_temp.init_subgraph(new_task,datamode,n_class)
     model_temp.to('cuda')
     optimizer_temp = optim.SGD(model_temp.parameters(), lr=0.01, momentum=0.9)
-    criterion = nn.CrossEntropyLoss()
+    if datamode == 'mltr':
+        criterion = torch.nn.CTCLoss(zero_infinity=True)
+    else:
+        criterion = nn.CrossEntropyLoss()
     logging.debug('---->Growth step1: Training new task %s for RDM creation',new_task)
     print('---->Growth step1: Training new task ',new_task,' for RDM creation')
-    acc = train_single_task(model_temp,criterion,optimizer_temp,train_loaders[new_task],val_loaders[new_task],new_task,datamode,epochs)
-    
+    model_name = datamode+'_'+new_task+'_'+str(epochs)+'.pth'
+    if not os.path.exists(path_pretrain+model_name):
+    	acc = train_single_task(model_temp,criterion,optimizer_temp,train_loaders[new_task],val_loaders[new_task],new_task,datamode,epochs)
+    	print(path_pretrain)
+    	model_temp.save_model(path_pretrain+model_name)
+    else:
+    	print('Loading pretrained model for getting activations')
+    	print('Loaded model:',model_name)
+    	model_temp.load_model(path_pretrain+model_name)
+    	model_temp.to('cuda')
+    	acc,_ = test(model_temp,criterion,val_loaders[new_task],new_task,datamode)
     activations_new_task = get_activations(model_temp,image_loader_500,new_task,datamode)
     return activations_new_task, acc
 
 
-def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,freeze=None,task_classes=None,epochs=10,similarity='pearson'):
+def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,pretrain_path,freeze=None,task_classes=None,epochs=10,similarity='pearson'):
     birth = time.time()
     print('###Initiating Growing Process###')
     logging.debug('###Initiating Growing Process###')
@@ -389,7 +419,7 @@ def learn_to_grow(model,criterion,train_loaders,val_loaders,task_names,datamode,
         
         if similarity == 'RSA':
             image_loader_500 = get_500_images_loader(train_loaders[new_task])
-            activations_new_task, acc = get_new_task_activations(image_loader_500,new_task,train_loaders,val_loaders,datamode,epochs,n_classes)
+            activations_new_task, acc = get_new_task_activations(image_loader_500,new_task,train_loaders,val_loaders,datamode,epochs,pretrain_path,n_classes)
             task_layerwise_sims, task_sim_scores = RSA_Sim(model,new_task,tasks,train_loaders,val_loaders,activations_new_task,image_loader_500,datamode)
             acc_mono.append(acc)
 
@@ -511,9 +541,17 @@ def run_learn_to_grow(opt):
         train_loaders, val_loaders, task_classes = get_tasks_VDD(task_names,opt.data_dir,opt.imdb_dir,batch_size,opt.data_usage)
         template = get_alexnet_template(pretrained=True)
     if opt.datamode == 'mltr':
-        task_names = ['arab','hin','ban','mar']
-        #train_loaders, val_loaders = get_MLT_loaders(task_names)
-        #template = get_mlt_template()
+        task_names = ['hin','ban']
+        #train_loaders, val_loaders, task_classes = get_MLT_loaders(task_names,batch_size)
+        template = {'conv2d_input1':nn.Conv2d(1, 64, 3, 1, 1), 'relu1':nn.ReLU(),'maxpool1':nn.MaxPool2d(2, 2),
+            'conv2d_2':nn.Conv2d(64, 128, 3, 1, 1),'relu2':nn.ReLU(),'maxpool2':nn.MaxPool2d(2, 2),
+            'conv2d_3':nn.Conv2d(128, 256, 3, 1, 1), 'relu3':nn.ReLU(),
+            'conv2d_4':nn.Conv2d(256, 256, 3, 1, 1), 'relu4':nn.ReLU(True),'maxpool3':nn.MaxPool2d((2, 1), (2, 1)),
+            'conv2d_5':nn.Conv2d(256, 512, 3, 1, 1, bias=False),'bn1':nn.BatchNorm2d(512), 'relu5':nn.ReLU(),
+            'conv2d_6':nn.Conv2d(512, 512, 3, 1, 1, bias=False),'bn2':nn.BatchNorm2d(512), 'relu6':nn.ReLU(),'maxpool4':nn.MaxPool2d((2, 1), (2, 1)),
+            'conv2d_7':nn.Conv2d(512, 512, 2, 1, 0), 'relu7':nn.ReLU(True),'vis_context':visual_context(),
+            'BiLstm_1':BidirectionalLSTM(512,256,256),
+            'BiLstm_2':BidirectionalLSTM(256,256,256)}
 
 
 
@@ -530,7 +568,7 @@ def run_learn_to_grow(opt):
     else:
         criterion = nn.CrossEntropyLoss()
     x,avg_acc,avg_diff = learn_to_grow(model,criterion,train_loaders,val_loaders,task_names_sub,
-                                    datamode,freeze_past,task_classes,epochs,opt.sim_strat)
+                                    datamode,opt.pretrain_path,freeze_past,task_classes,epochs,opt.sim_strat)
     num_paras = compute_num_para(model)
     save_results(opt,model,x,avg_acc,avg_diff)
     print(viz_jnet(model.sub_graphs))
