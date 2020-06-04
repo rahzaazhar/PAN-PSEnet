@@ -2,7 +2,7 @@ import torch
 from modelv1 import GradCL, Flatten, get_alexnet_template#, visual_context MLT
 from modules.sequence_modeling import BidirectionalLSTM
 import pmnist_dataset
-from datasetv1 import AlignCollate
+#from datasetv1 import AlignCollate
 #from mlt_loader import get_MLT_loaders MLT
 import torch
 import torch.nn as nn
