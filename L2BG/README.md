@@ -2,7 +2,7 @@
 
 # Learn to Bind and Grow Neural Structures
 
-This repository is the official implementation of Learn to Bind and Grow Neural Structures. Paper can be found [here](paper.pdf)
+This repository is the official implementation of Learn to Bind and Grow Neural Structures. Paper can be found [here](paper_nips.pdf)
 
 
 ## Requirements
