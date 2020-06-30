@@ -1,0 +1,55 @@
+-training
+	|--train_<lang1>
+		|--Real
+			|--<lang1>_dataset1
+			|--<lang1>_dataset2
+			|--
+			|--
+		|--Syn
+			|--<lang1>_dataset1
+			|--<lang1>_dataset2
+			|--
+			|--
+	|--train_<lang2>
+		|--Real
+			|--<lang2>_dataset1
+			|--<lang2>_dataset2
+			|--
+			|--
+		|--Syn
+			|--<lang2>_dataset1
+			|--<lang2>_dataset2
+			|--
+			|--
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-validation
+	|--val_<lang1>
+		|--Real
+			|--<lang1>_dataset1
+			|--<lang1>_dataset2
+			|--
+			|--
+		|--Syn
+			|--<lang1>_dataset1
+			|--<lang1>_dataset2
+			|--
+			|--
+	|--val_<lang2>
+		|--Real
+			|--<lang2>_dataset1
+			|--<lang2>_dataset2
+			|--
+			|--
+		|--Syn
+			|--<lang2>_dataset1
+			|--<lang2>_dataset2
+			|--
+			|--
+
+
+
+
+
+
