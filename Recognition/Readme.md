@@ -1,3 +1,5 @@
+# Multi-Lingual Text Recognition
+pytorch code to train scene text recognition models for indic languages
 ## MLT19 format to lmdb conversion 
 run the following commands if data is in MLT19 format, if data is already in lmdb format skip to Data Setup 
  ``` 
