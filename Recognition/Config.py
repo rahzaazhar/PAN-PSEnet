@@ -76,7 +76,7 @@ class langConfig:
 @dataclass
 class taskConfig:
     task_name: str
-    schedule: dict
+    schedule: dict # list of tuples [(lang, num)] => `num` batches of `lang`
     langs: List[langConfig] 
     hp: HP
 
@@ -90,3 +90,19 @@ task_1 = taskConfig(task_name='hin',langs=[hin_config],schedule=[('hin',1)],hp=h
 #path = '/path/to/data/'
 #test_new_train = Config(experiment_name='test_new_train_hin',exp_dir='tests',train_data=path+'training',valid_data=path+'validation')
 #/taskconfig_hin = Task(lang='hin',numiters=10)
+
+
+
+
+hin_config2 = langConfig(lang_name='hin', base_path='/data/synth/mlt_data/data',
+                useSyn=True, useReal=False
+            )
+task_hi = taskConfig(task_name='hin',langs=[hin_config2],schedule=[('hin',1)],hp=hp_config)
+
+
+
+
+
+
+
+

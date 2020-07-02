@@ -46,7 +46,7 @@ def get_loaders(config,langconfig):
         print('Use Syn only')
         select = [langconfig.which_syn_data]
         batch_ratio = [1.0]
-        synval_dataset = hierarchical_dataset(lang, root= val_string+'/Syn', opt=config)
+        synval_dataset = hierarchical_dataset(lang, root=val_string+'/Syn', opt=config)
         loaders['synval'] =  genLoader(config,synval_dataset,False)
     loaders['train'] = Batch_Balanced_Dataset(config, train_string, lang, batch_ratio=batch_ratio, select_data=select)
     train_dataset_eval = hierarchical_dataset(lang, root=train_string, opt=config, select_data=select)
