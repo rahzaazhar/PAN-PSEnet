@@ -3,6 +3,7 @@ from torch.utils.data import Subset
 from datasetv1 import hierarchical_dataset, AlignCollate, Batch_Balanced_Dataset
 from utils import CTCLabelConverter
 from utils import get_vocab
+import os
 
 def genLoader(opt,dataset,shuffle=True):
     AlignCollate_valid = AlignCollate(imgH=opt.imgH, imgW=opt.imgW, keep_ratio_with_pad=opt.PAD)
@@ -26,8 +27,8 @@ def get_multiple_loaders(taskconfig):
 def get_loaders(config,langconfig):
     loaders = {}
     lang = langconfig.lang_name
-    train_string = config.train_data+'/train_'+lang
-    val_string = config.valid_data+'/val_'+lang
+    train_string = os.path.join(langconfig.base_data_path,'training','train_'+lang)
+    val_string = os.path.join(langconfig.base_data_path,'validation','val_'+lang)
     if langconfig.useReal and langconfig.useSyn:
         print('use Real and SYN')
         select = [langconfig.which_real_data,langconfig.which_syn_data]

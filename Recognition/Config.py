@@ -9,8 +9,8 @@ class HP:
     
     experiment_name: str
     exp_dir: str
-    train_data: str
-    valid_data: str
+    #train_data: str
+    #valid_data: str
     #langs: List[str]
     #pli: List[int]
     #mode: List[str]
@@ -64,10 +64,10 @@ class HP:
 @dataclass
 class langConfig:
     lang_name: str
-    base_path: str
+    base_data_path: str # path to folder containing training and validation data
     useReal: bool
     useSyn: bool
-    which_real_data: str = 'Real'
+    which_real_data: str = 'Real' # if Real/dataset_name specified selects dataset_name if Real uses all datasets under Real 
     which_syn_data: str = 'Syn'
     real_percent: float = 0.2
     syn_percent: float = 0.8
@@ -80,24 +80,23 @@ class taskConfig:
     langs: List[langConfig] 
     hp: HP
 
-hin_config = langConfig(lang_name='hin',base_path='/',useReal=True,useSyn=True)
-ban_config = langConfig(lang_name='ban',base_path='/',useReal=True,useSyn=True)
-hp_config = HP(experiment_name='test_loaders_single',exp_dir='exps',train_data='training',valid_data='validation',num_iter=10,valInterval=5)
-
-task = taskConfig(task_name='hin_ban',langs=[hin_config,ban_config],schedule=[('ban',1),('hin',1)],hp=hp_config)
-task_1 = taskConfig(task_name='hin',langs=[hin_config],schedule=[('hin',1)],hp=hp_config)    
-
-#path = '/path/to/data/'
-#test_new_train = Config(experiment_name='test_new_train_hin',exp_dir='tests',train_data=path+'training',valid_data=path+'validation')
-#/taskconfig_hin = Task(lang='hin',numiters=10)
+hp_config = HP(experiment_name='test_loaders_single',exp_dir='exps',num_iter=10,valInterval=5)
 
 
-
-
-hin_config2 = langConfig(lang_name='hin', base_path='/data/synth/mlt_data/data',
+hin_config2 = langConfig(lang_name='hin', base_data_path='/data/synth/mlt_data/data',
                 useSyn=True, useReal=False
             )
-task_hi = taskConfig(task_name='hin',langs=[hin_config2],schedule=[('hin',1)],hp=hp_config)
+hin_config3 = langConfig(lang_name='hin', base_data_path='/home/azhar/PAN-PSEnet/Recognition/mlt_data/data',
+                useSyn=True, useReal=False
+            )
+kan_config = langConfig(lang_name='kan', base_data_path='/home/azhar/PAN-PSEnet/Recognition/mlt_data/data',
+                useSyn=True, useReal=False
+            )
+
+task_kan = taskConfig(task_name='kan',langs=[kan_config],schedule=[('kan',1)],hp=hp_config) 
+task_hi = taskConfig(task_name='hin',langs=[hin_config],schedule=[('hin',1)],hp=hp_config)
+
+task_kan_hi = taskConfig(task_name='kan_hin',langs=[kan_config,hin_config3],schedule=[('kan',1),('hin',1)],hp=hp_config)
 
 
 

@@ -163,7 +163,11 @@ class LmdbDataset(Dataset):
                 for index in range(self.nSamples):
                     index += 1  # lmdb starts with 1
                     label_key = 'label-%09d'.encode() % index
-                    label = txn.get(label_key).decode('utf-8')
+                    label = txn.get(label_key)
+                    if label == None:
+                        continue
+                    label = label.decode('utf-8')
+                    #print(label)
 
                     if len(label) > self.opt.batch_max_length:
                         # print(f'The length of the label is longer than max_length: length
@@ -177,6 +181,9 @@ class LmdbDataset(Dataset):
                     out_of_char = f'[^{self.opt.character[lang]}]'
                     #print(out_of_char)
                     if re.search(out_of_char, label.lower()):
+                        continue
+
+                    if ','  in label:
                         continue
 
                     self.filtered_index_list.append(index)
