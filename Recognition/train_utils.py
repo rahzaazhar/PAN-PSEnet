@@ -81,6 +81,17 @@ def weight_innit(model):
     return model
 
 
+def load_clova_model(model,clova_model_path):
+    weights = torch.load(clova_model_path) 
+    for name, para in model.named_parameters():
+        if 'FeatureExtraction' in name:
+            name = 'module.'+name
+            para.data.copy_(weights[name].data)
+        if 'rnn' in name:
+            name.replace('rnn_lang','module.SequenceModeling')
+    return model
+
+
 def filter_params(model):
     # filter that only require gradient decent
     filtered_parameters = []
@@ -202,28 +213,29 @@ def LoadW(opt,model,lang):
 ''' Validation Utilities'''
 def save_best_model(opt, model, best_acc, best_ED, metrics):
 
-    ED, word_acc = return_new_score(opt, metrics)
+    ED, word_acc = return_new_score(metrics,opt.calc_best_metric_on)
 
     if word_acc > best_acc:
         best_acc = word_acc
-        torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_accuracy.pth')
+        torch.save(model.state_dict(), opt.save_path+'/saved_models/best_acc_model.pth')
     if ED > best_ED:
         best_ED = ED
-        torch.save(model.state_dict(), f'./{opt.exp_dir}/{opt.experiment_name}/{opt.experiment_name}_best_NED.pth')
+        torch.save(model.state_dict(), opt.save_path+'/saved_models/best_NED_model.pth')
 
     return best_acc, best_ED
 
 
-def return_new_score(opt,metrics):
+def return_new_score(metrics,dataset):
     word_acc = 0
     ED = 0
     
-    for lang in opt.langs:
-        word_acc += metrics[lang]['Real_val_Wordaccuracy']
-        ED += metrics[lang]['Real_val_edit-dist']
+    langs = list(metrics.keys())
+    for lang in langs:
+        word_acc += metrics[lang][dataset+'acc'][-1]
+        ED += metrics[lang][dataset+'NED'][-1]
 
-    ED = ED/len(opt.langs)
-    word_acc = word_acc/len(opt.langs)
+    ED = ED/len(langs)
+    word_acc = word_acc/len(langs)
 
     return ED, word_acc
 

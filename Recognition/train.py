@@ -19,7 +19,7 @@ import train_utils
 
 from loader import get_multiple_loaders
 from utils import CTCLabelConverter, Averager, Scheduler, get_vocab
-from train_utils import save_best_model, log_best_metrics, setup_model, setup_optimizer, setup_loss, printOptions
+from train_utils import save_best_model, log_best_metrics, setup_model, setup_optimizer, setup_loss, printOptions, load_clova_model
 from test import validation
 import Config as M
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -128,6 +128,11 @@ def train(taskconfig,model,optimizer,criterion,multi_loader):
                         update_metrics(lang_metrics[lang],new_update)
                         plot_metrics(taskconfig,lang_metrics[lang],x,lang)
                     print('-'*80)
+                    best_acc, best_ED = save_best_model(taskconfig.hp, model, best_acc, best_ED, lang_metrics)
+
+                if iterrs%taskconfig.hp.save_iter == 0:
+                    save_path = taskconfig.hp.save_path+'/saved_models/'+str(iterrs)+'_iters.pth'
+                    torch.save(model.state_dict(), save_path)
 
                     model.train()
 
@@ -143,6 +148,11 @@ if __name__ == '__main__':
     taskconfig.hp.character = get_vocab()
     print(taskconfig.hp.character)
     model = setup_model(taskconfig.hp)
+    if not taskconfig.hp.clova_pretrained_model_path == '':
+    	load_clova_model(model,taskconfig.hp.clova_pretrained_model_path)
+    if not taskconfig.hp.pretrained_model_path == '':
+    	model.load_state_dict(torch.load(taskconfig.hp.pretrained_model_path))
+
     print(model)
     loss = setup_loss(taskconfig.hp)
     optimizer = setup_optimizer(taskconfig.hp, model)

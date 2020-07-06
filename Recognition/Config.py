@@ -20,9 +20,12 @@ class HP:
     batch_ratio: List[int] = field(default_factory=list, init=False)
 
     #hp: HP
+    calc_best_metric_on: str = 'synval' # val datset type [synval|rval] 
+    save_iter: int = 5
     print_iter: int = 2
     character: dict = None
-    shared_model: str = ''
+    clova_pretrained_model_path: str = '' 
+    pretrained_model_path: str = ''
     spath: str = ''
     Transformation: str = 'None'
     FeatureExtraction: str = 'VGG'
@@ -80,7 +83,7 @@ class taskConfig:
     langs: List[langConfig] 
     hp: HP
 
-hp_config = HP(experiment_name='test_loaders_single',exp_dir='exps',num_iter=10,valInterval=5)
+hp_config = HP(experiment_name='test_loaders_single',exp_dir='exps',num_iter=50,valInterval=5,clova_pretrained_model_path='None-VGG-BiLSTM-CTC.pth')
 
 
 hin_config2 = langConfig(lang_name='hin', base_data_path='/data/synth/mlt_data/data',
@@ -94,7 +97,7 @@ kan_config = langConfig(lang_name='kan', base_data_path='/home/azhar/PAN-PSEnet/
             )
 
 task_kan = taskConfig(task_name='kan',langs=[kan_config],schedule=[('kan',1)],hp=hp_config) 
-task_hi = taskConfig(task_name='hin',langs=[hin_config],schedule=[('hin',1)],hp=hp_config)
+#task_hi = taskConfig(task_name='hin',langs=[hin_config],schedule=[('hin',1)],hp=hp_config)
 
 task_kan_hi = taskConfig(task_name='kan_hin',langs=[kan_config,hin_config3],schedule=[('kan',1),('hin',1)],hp=hp_config)
 
