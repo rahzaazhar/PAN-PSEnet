@@ -127,7 +127,7 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang, masker
     length_of_data = 0
     infer_time = 0
     valid_loss_avg = Averager()
-    cnt = 0
+    #cnt = 0
     #print('enter validate in test')
     #if not masker == None:
     #    model = masker.model
@@ -194,9 +194,9 @@ def validation(model, criterion, evaluation_loader, converter, opt, lang, masker
                 #print(edit_distance(pred, gt) / max(len(gt),len(pred)))
                 norm_ED += 1-(edit_distance(pred, gt) / max(len(gt),len(pred)))
                 #print(norm_ED)
-        if cnt>7:
-           break
-        cnt = cnt+1
+        #if cnt>7:
+        #   break
+        #cnt = cnt+1
 
     norm_ED = norm_ED/float(length_of_data)
     #norm_ED = 1-norm_ED
