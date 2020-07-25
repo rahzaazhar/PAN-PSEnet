@@ -129,12 +129,11 @@ def train(taskconfig,model,optimizer,criterion,multi_loader):
                         plot_metrics(taskconfig,lang_metrics[lang],x,lang)
                     print('-'*80)
                     best_acc, best_ED = save_best_model(taskconfig.hp, model, best_acc, best_ED, lang_metrics)
+                    model.train()
 
                 if iterrs%taskconfig.hp.save_iter == 0:
                     save_path = taskconfig.hp.save_path+'/saved_models/'+str(iterrs)+'_iters.pth'
                     torch.save(model.state_dict(), save_path)
-
-                    model.train()
 
 
 if __name__ == '__main__':

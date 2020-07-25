@@ -21,10 +21,10 @@ import torch.nn as nn
 import numpy as np
 import copy
 import torchvision.models as vision_models
-from modules.transformation import TPS_SpatialTransformerNetwork
-from modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
-from modules.sequence_modeling import BidirectionalLSTM
-from modules.prediction import Attention
+from .modules.transformation import TPS_SpatialTransformerNetwork
+from .modules.feature_extraction import VGG_FeatureExtractor, RCNN_FeatureExtractor, ResNet_FeatureExtractor
+from .modules.sequence_modeling import BidirectionalLSTM
+from .modules.prediction import Attention
 
 
 class sharedCNNModel(nn.Module):

@@ -315,9 +315,9 @@ class LanguageData(object):
                 collate_fn=self.AlignCollate_valid, pin_memory=True)
 
 #@azhar
-def get_vocab():
+def get_vocab(vocab_file='characters.txt'):
     vocab_dict = {}
-    f = open('characters.txt','r')#replace with gen path option
+    f = open(vocab_file,'r')
     lines = f.readlines()
     for line in lines:#@azhar
         vocab_dict[line.split(',')[0]] = line.strip().split(',')[-1]

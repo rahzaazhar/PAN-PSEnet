@@ -13,7 +13,7 @@ import torch.nn.init as init
 import torch.optim as optim
 import torch.utils.data
 import numpy as np
-from modelv1 import sharedCNNModel, SharedLSTMModel, SLSLstm
+from .modelv1 import sharedCNNModel, SharedLSTMModel, SLSLstm
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 ''' Settin Model, Loss and Optimizer'''
