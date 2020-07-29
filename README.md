@@ -27,7 +27,7 @@ Both PSEnet and CRNN pre-trained models can be found here: [gdrive](https://driv
 Download the models in `models/` directory and modify `params.py` if required.
 
 ### Training instructions
-* To train your own detection model refer to [this](PAN-PSEnet/Detection/PSEnet/train_ic19MLT.py) file.
+* To train your own detection model refer to [this](Detection/PSEnet/train_ic19MLT.py) file.
 * To train your own recognition model refer to [this](Recognition/Readme.md) file.
 
 ### Samples
