@@ -36,7 +36,7 @@ Download the models in `models/` directory and modify `params.py` if required.
 
 ![After Text Detection](./demo/result.jpg)
 
-![After Text Recognition](./demo/transcript.png)
+![After Text Recognition](./demo/recog_result.png)
 
 ### Contributors
 
